@@ -309,11 +309,12 @@ const OrderPage = () => {
       setSubmitting(true);
       setErrors({});
 
+      const phoneNumber = formData.phone.replace(/\D/g, "");
       const payload = {
         variantId,
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim(),
+        phoneNumber,
         province: formData.province,
         city: formData.city.trim(),
         address: formData.address.trim(),

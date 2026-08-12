@@ -26,6 +26,7 @@ router.post(
   "/",
   protect,
   admin,
+   upload.array("images", 8),
   createProduct
 );
 
@@ -33,6 +34,7 @@ router.patch(
   "/:id",
   protect,
   admin,
+   upload.array("images", 8),
   updateProduct
 );
 

@@ -14,7 +14,7 @@ exports.createOrder = async (req, res) => {
     const {
       name,
       email,
-      phoneNumber,
+      phoneNumber:rawPhoneNumber,
       province,
       city,
       address,
@@ -24,6 +24,13 @@ exports.createOrder = async (req, res) => {
       variantId,
     } = req.body;
 
+    const phoneNumber = formData.phone.replace(/\D/g, "");
+    
+    if (!/^\d{10,15}$/.test(phoneNumber)) {
+  return res.status(400).json({
+    message: "Please enter a valid phone number",
+  });
+}
     const { productId } = req.params;
 
     // --------------------------------------------------------

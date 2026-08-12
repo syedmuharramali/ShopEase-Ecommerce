@@ -1,6 +1,22 @@
 const Product = require("../models/product.model");
 const Category = require("../models/category.model");
 
+function filesToProductImages(
+  files,
+  productName,
+  startPosition = 0
+) {
+  return (files || []).map(
+    (file, index) => ({
+      url: `uploads/${file.filename}`,
+
+      alt: productName || "",
+
+      position:
+        startPosition + index,
+    })
+  );
+}
 function slugify(value) {
   return value
     .toString()
