@@ -1,176 +1,293 @@
-// frontend/src/components/Navbar.jsx
-import { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router';
-import { useSelector, useDispatch } from 'react-redux';
-import { logout } from '../slices/authSlice';
-import { FaStore, FaBoxOpen, FaSignInAlt, FaSignOutAlt, FaUser, FaTachometerAlt, FaEnvelope, FaBars, FaTimes, FaHome } from 'react-icons/fa';
+
+import React, { useEffect, useState } from "react";
+import {
+  NavLink,
+  useLocation,
+  useNavigate,
+} from "react-router";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  FaArrowRight,
+  FaBars,
+  FaBoxOpen,
+  FaEnvelope,
+  FaHome,
+  FaLock,
+  FaSignOutAlt,
+  FaStore,
+  FaTachometerAlt,
+  FaTimes,
+} from "react-icons/fa";
+import { logout } from "../slices/authSlice";
 
 const Navbar = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+
   const { adminInfo } = useSelector((state) => state.auth);
+
   const [scrolled, setScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 10);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 8);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isMenuOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMenuOpen]);
 
   const handleLogout = () => {
     dispatch(logout());
-    navigate('/');
     setIsMenuOpen(false);
+    navigate("/");
   };
 
-  const closeMenu = () => setIsMenuOpen(false);
+  const navLinkClass = ({ isActive }) =>
+    [
+      "relative inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5",
+      "text-sm font-medium transition duration-200",
+      isActive
+        ? "bg-slate-100 text-slate-950"
+        : "text-slate-500 hover:bg-slate-50 hover:text-slate-950",
+    ].join(" ");
 
-  // Active link styling function
-  const getActiveClass = ({ isActive }) => {
-    return isActive
-      ? 'text-purple-600 bg-purple-50 flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200'
-      : 'text-gray-700 hover:text-purple-600 hover:bg-gray-50 flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200';
-  };
+  const mobileNavLinkClass = ({ isActive }) =>
+    [
+      "flex items-center justify-between rounded-2xl px-4 py-3.5",
+      "text-sm font-semibold transition",
+      isActive
+        ? "bg-slate-950 text-white"
+        : "text-slate-700 hover:bg-slate-50",
+    ].join(" ");
 
-  const getMobileActiveClass = ({ isActive }) => {
-    return isActive
-      ? 'bg-purple-50 text-purple-600 flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200'
-      : 'text-gray-700 hover:bg-gray-50 flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200';
-  };
+  const publicLinks = [
+    {
+      to: "/",
+      label: "Home",
+      icon: FaHome,
+      end: true,
+    },
+    {
+      to: "/products",
+      label: "Shop",
+      icon: FaBoxOpen,
+    },
+    {
+      to: "/contact",
+      label: "Contact",
+      icon: FaEnvelope,
+    },
+  ];
 
   return (
     <>
-      <header className={`sticky top-0 z-50 transition-all duration-300 ${
-        scrolled ? 'bg-white/95 backdrop-blur-md shadow-lg' : 'bg-white shadow-md'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <NavLink to="/" className="flex items-center space-x-2 group" onClick={closeMenu}>
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg flex items-center justify-center transform group-hover:scale-110 transition-transform duration-200">
-                <FaStore className="text-white text-lg" />
+      <header
+        className={`sticky top-0 z-50 border-b transition-all duration-300 ${
+          scrolled
+            ? "border-slate-200/80 bg-white/92 shadow-[0_10px_35px_rgba(15,23,42,0.055)] backdrop-blur-xl"
+            : "border-slate-100 bg-white"
+        }`}
+      >
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-[72px] items-center justify-between">
+            <NavLink
+              to="/"
+              className="group inline-flex items-center gap-2.5"
+              aria-label="ShopEase home"
+            >
+              <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-[14px] bg-slate-950 text-white shadow-[0_8px_24px_rgba(15,23,42,0.18)] transition duration-300 group-hover:-translate-y-0.5">
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/90 to-blue-600/90" />
+                <FaStore className="relative text-base" />
               </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                ShopEase
-              </span>
+
+              <div className="leading-none">
+                <span className="block text-[21px] font-semibold tracking-[-0.035em] text-slate-950">
+                  ShopEase
+                </span>
+                <span className="mt-1 hidden text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400 sm:block">
+                  Modern commerce
+                </span>
+              </div>
             </NavLink>
 
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-2">
-              <NavLink to="/" className={getActiveClass} end>
-                <FaHome className="text-lg" />
-                <span>Home</span>
-              </NavLink>
-              
-              <NavLink to="/products" className={getActiveClass}>
-                <FaBoxOpen className="text-lg" />
-                <span>Products</span>
-              </NavLink>
-              
-              <NavLink to="/contact" className={getActiveClass}>
-                <FaEnvelope className="text-lg" />
-                <span>Contact</span>
-              </NavLink>
-              
+            <nav
+              className="hidden items-center gap-1 md:flex"
+              aria-label="Primary navigation"
+            >
+              {publicLinks.map(({ to, label, icon: Icon, end }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  className={navLinkClass}
+                >
+                  <Icon className="text-[12px]" />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </nav>
+
+            <div className="hidden items-center gap-2 md:flex">
               {adminInfo ? (
-                <div className="flex items-center gap-2 ml-2">
-                  <NavLink to="/admin/dashboard" className={getActiveClass}>
-                    <FaTachometerAlt className="text-lg" />
-                    <span>Dashboard</span>
+                <>
+                  <NavLink
+                    to="/admin/dashboard"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+                  >
+                    <FaTachometerAlt className="text-xs" />
+                    Dashboard
                   </NavLink>
+
                   <button
+                    type="button"
                     onClick={handleLogout}
-                    className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                    aria-label="Log out"
+                    title="Log out"
                   >
                     <FaSignOutAlt />
-                    <span>Logout</span>
                   </button>
-                </div>
+                </>
               ) : (
-                <NavLink to="/admin/login" className={({ isActive }) => 
-                  isActive
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2'
-                    : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-200 flex items-center gap-2'
-                }>
-                  <FaUser />
-                  <span>Admin Login</span>
+                <NavLink
+                  to="/admin/login"
+                  className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                >
+                  <FaLock className="text-[10px]" />
+                  Admin
                 </NavLink>
               )}
             </div>
 
-            {/* Mobile Menu Button */}
             <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              type="button"
+              onClick={() => setIsMenuOpen((current) => !current)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 md:hidden"
+              aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={isMenuOpen}
             >
-              {isMenuOpen ? <FaTimes className="w-6 h-6" /> : <FaBars className="w-6 h-6" />}
+              {isMenuOpen ? <FaTimes /> : <FaBars />}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile Menu */}
-      {isMenuOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={closeMenu}>
-          <div className="absolute top-16 right-0 w-64 bg-white shadow-xl rounded-bl-2xl p-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
-            <div className="flex flex-col gap-2">
-              <NavLink to="/" onClick={closeMenu} className={getMobileActiveClass} end>
-                <FaHome className="text-xl" />
-                <span className="font-medium">Home</span>
-              </NavLink>
-              
-              <NavLink to="/products" onClick={closeMenu} className={getMobileActiveClass}>
-                <FaBoxOpen className="text-xl" />
-                <span className="font-medium">Products</span>
-              </NavLink>
-              
-              <NavLink to="/contact" onClick={closeMenu} className={getMobileActiveClass}>
-                <FaEnvelope className="text-xl" />
-                <span className="font-medium">Contact</span>
-              </NavLink>
-              
-              {adminInfo ? (
-                <>
-                  <NavLink to="/admin/dashboard" onClick={closeMenu} className={getMobileActiveClass}>
-                    <FaTachometerAlt className="text-xl" />
-                    <span className="font-medium">Dashboard</span>
+      <div
+        className={`fixed inset-0 z-40 transition duration-300 md:hidden ${
+          isMenuOpen
+            ? "pointer-events-auto bg-slate-950/35 opacity-100 backdrop-blur-[2px]"
+            : "pointer-events-none bg-transparent opacity-0"
+        }`}
+        onClick={() => setIsMenuOpen(false)}
+        aria-hidden={!isMenuOpen}
+      >
+        <div
+          onClick={(event) => event.stopPropagation()}
+          className={`absolute right-0 top-[72px] h-[calc(100%-72px)] w-[min(88vw,360px)] border-l border-slate-200 bg-white p-5 shadow-2xl transition-transform duration-300 ${
+            isMenuOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="flex h-full flex-col">
+            <div>
+              <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Navigation
+              </p>
+
+              <nav className="mt-3 space-y-2" aria-label="Mobile navigation">
+                {publicLinks.map(({ to, label, icon: Icon, end }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={end}
+                    className={mobileNavLinkClass}
+                  >
+                    <span className="flex items-center gap-3">
+                      <Icon className="text-sm" />
+                      {label}
+                    </span>
+                    <FaArrowRight className="text-[9px] opacity-50" />
                   </NavLink>
-                  <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors">
-                    <FaSignOutAlt className="text-xl" />
-                    <span className="font-medium">Logout</span>
+                ))}
+              </nav>
+
+              <div className="my-5 h-px bg-slate-100" />
+
+              {adminInfo ? (
+                <div className="space-y-2">
+                  <NavLink
+                    to="/admin/dashboard"
+                    className={mobileNavLinkClass}
+                  >
+                    <span className="flex items-center gap-3">
+                      <FaTachometerAlt className="text-sm" />
+                      Admin dashboard
+                    </span>
+                    <FaArrowRight className="text-[9px] opacity-50" />
+                  </NavLink>
+
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                  >
+                    <FaSignOutAlt className="text-sm" />
+                    Log out
                   </button>
-                </>
+                </div>
               ) : (
-                <NavLink to="/admin/login" onClick={closeMenu} className={({ isActive }) =>
-                  isActive
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white flex items-center gap-3 px-4 py-3 rounded-lg'
-                    : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:shadow-lg transition-all duration-200 flex items-center gap-3 px-4 py-3 rounded-lg'
-                }>
-                  <FaUser className="text-xl" />
-                  <span className="font-medium">Admin Login</span>
+                <NavLink
+                  to="/admin/login"
+                  className="flex items-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-medium text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                >
+                  <FaLock className="text-xs" />
+                  Admin access
                 </NavLink>
               )}
             </div>
+
+            <div className="mt-auto rounded-[24px] bg-slate-950 p-5 text-white">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-300">
+                ShopEase
+              </p>
+              <p className="mt-2 text-lg font-semibold tracking-tight">
+                Find your next favorite.
+              </p>
+              <p className="mt-2 text-xs leading-5 text-white/55">
+                Browse products, choose your preferred options, and order with
+                confidence.
+              </p>
+
+              <NavLink
+                to="/products"
+                className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-white"
+              >
+                Explore products
+                <FaArrowRight className="text-[9px]" />
+              </NavLink>
+            </div>
           </div>
         </div>
-      )}
-
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateX(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-      `}</style>
+      </div>
     </>
   );
 };

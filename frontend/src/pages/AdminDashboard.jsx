@@ -1,392 +1,1328 @@
-// frontend/src/pages/AdminDashboard.jsx
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router';
-import { useSelector } from 'react-redux';
-import axios from 'axios';
-import { 
-  FaPlus, FaEdit, FaTrash, FaSpinner, FaBoxOpen, FaDollarSign, 
-  FaTag, FaImage, FaShoppingCart, FaClock, FaCheckCircle, 
-  FaTruck, FaTimesCircle 
-} from 'react-icons/fa';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Link,
+  useNavigate,
+} from "react-router";
+import { useSelector } from "react-redux";
+import axios from "axios";
+import { motion } from "framer-motion";
+import {
+  FaArchive,
+  FaArrowRight,
+  FaBox,
+  FaBoxOpen,
+  FaCheckCircle,
+  FaClock,
+  FaEdit,
+  FaExclamationTriangle,
+  FaLayerGroup,
+  FaPlus,
+  FaSearch,
+  FaShoppingBag,
+  FaSpinner,
+  FaStore,
+  FaTag,
+  FaTimes,
+  FaTimesCircle,
+  FaTruck,
+  FaWallet,
+} from "react-icons/fa";
+
+const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
+
+const ORDER_STATUSES = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+];
+
+const formatPrice = (value) =>
+  `PKR ${new Intl.NumberFormat("en-PK", {
+    maximumFractionDigits: 0,
+  }).format(Number(value) || 0)}`;
+
+const formatDate = (value) => {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-PK", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const getServerOrigin = () => {
+  if (!API_BASE_URL) return "";
+
+  try {
+    return new URL(API_BASE_URL).origin;
+  } catch {
+    return typeof window !== "undefined" ? window.location.origin : "";
+  }
+};
+
+const getImageUrl = (image) => {
+  const rawPath = typeof image === "string" ? image : image?.url;
+
+  if (!rawPath) {
+    return "https://placehold.co/600x600/f8fafc/94a3b8?text=ShopEase";
+  }
+
+  const cleanPath = rawPath.replace(/\\/g, "/");
+
+  if (/^https?:\/\//i.test(cleanPath)) return cleanPath;
+
+  return `${getServerOrigin()}/${cleanPath.replace(/^\/+/, "")}`;
+};
+
+const getCategoryName = (category) => {
+  if (!category) return "Uncategorized";
+  return typeof category === "string"
+    ? category
+    : category.name || "Uncategorized";
+};
+
+const normalizeProducts = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.products)) return payload.products;
+  return [];
+};
+
+const normalizeOrders = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.orders)) return payload.orders;
+  return [];
+};
+
+const normalizeVariants = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.variants)) return payload.variants;
+  return [];
+};
+
+const buildVariantSummary = (variants) => {
+  const activeVariants = variants.filter(
+    (variant) => variant?.isActive !== false
+  );
+
+  const prices = activeVariants
+    .map((variant) => Number(variant?.price))
+    .filter((price) => Number.isFinite(price));
+
+  const totalStock = activeVariants.reduce(
+    (sum, variant) => sum + Number(variant?.stock || 0),
+    0
+  );
+
+  return {
+    variants: activeVariants,
+    variantCount: activeVariants.length,
+    minPrice: prices.length ? Math.min(...prices) : null,
+    maxPrice: prices.length ? Math.max(...prices) : null,
+    totalStock,
+    inStock: totalStock > 0,
+  };
+};
+
+const StatusBadge = ({ status }) => {
+  const config = {
+    pending: {
+      label: "Pending",
+      icon: FaClock,
+      className: "bg-amber-50 text-amber-700 ring-amber-100",
+    },
+    confirmed: {
+      label: "Confirmed",
+      icon: FaCheckCircle,
+      className: "bg-blue-50 text-blue-700 ring-blue-100",
+    },
+    processing: {
+      label: "Processing",
+      icon: FaSpinner,
+      className: "bg-violet-50 text-violet-700 ring-violet-100",
+    },
+    shipped: {
+      label: "Shipped",
+      icon: FaTruck,
+      className: "bg-indigo-50 text-indigo-700 ring-indigo-100",
+    },
+    delivered: {
+      label: "Delivered",
+      icon: FaCheckCircle,
+      className: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+    },
+    cancelled: {
+      label: "Cancelled",
+      icon: FaTimesCircle,
+      className: "bg-red-50 text-red-700 ring-red-100",
+    },
+  };
+
+  const selected = config[status] || config.pending;
+  const Icon = selected.icon;
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${selected.className}`}
+    >
+      <Icon className={status === "processing" ? "animate-spin" : ""} />
+      {selected.label}
+    </span>
+  );
+};
+
+const ProductStatusBadge = ({ status }) => {
+  const active = status === "active";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${
+        active
+          ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+          : status === "draft"
+            ? "bg-amber-50 text-amber-700 ring-amber-100"
+            : "bg-slate-100 text-slate-500 ring-slate-200"
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${
+          active
+            ? "bg-emerald-500"
+            : status === "draft"
+              ? "bg-amber-500"
+              : "bg-slate-400"
+        }`}
+      />
+      {status
+        ? `${status.charAt(0).toUpperCase()}${status.slice(1)}`
+        : "Unknown"}
+    </span>
+  );
+};
+
+const EmptyState = ({ icon: Icon, title, description, action }) => (
+  <div className="px-6 py-16 text-center">
+    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+      <Icon className="text-xl" />
+    </div>
+    <h3 className="mt-5 text-lg font-semibold text-slate-950">{title}</h3>
+    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+      {description}
+    </p>
+    {action}
+  </div>
+);
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const { adminInfo } = useSelector((state) => state.auth);
+
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('products'); // 'products' or 'orders'
-  const [stats, setStats] = useState({ 
-    totalProducts: 0, 
-    totalCategories: 0,
-    totalOrders: 0,
-    totalRevenue: 0
-  });
 
-  // Fetch products and orders
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+
+  const [activeTab, setActiveTab] = useState("products");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [archiving, setArchiving] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState("");
+
+  const [notice, setNotice] = useState(null);
+  const [loadError, setLoadError] = useState("");
+
+  const authHeaders = useMemo(
+    () => ({
+      Authorization: `Bearer ${adminInfo?.token || ""}`,
+    }),
+    [adminInfo?.token]
+  );
+
   useEffect(() => {
+    if (!adminInfo?.token) {
+      navigate("/admin/login", { replace: true });
+    }
+  }, [adminInfo?.token, navigate]);
+
+  useEffect(() => {
+    if (!adminInfo?.token) return;
+
     fetchProducts();
     fetchOrders();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminInfo?.token]);
+
+  const showNotice = (type, message) => {
+    setNotice({ type, message });
+
+    window.setTimeout(() => {
+      setNotice(null);
+    }, 3500);
+  };
 
   const fetchProducts = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/products`);
-      setProducts(response.data);
-      const uniqueCategories = [...new Set(response.data.map(p => p.category).filter(Boolean))];
-      setStats(prev => ({
-        ...prev,
-        totalProducts: response.data.length,
-        totalCategories: uniqueCategories.length
-      }));
+      setLoadingProducts(true);
+      setLoadError("");
+
+      const response = await axios.get(`${API_BASE_URL}/products`, {
+        params: {
+          limit: 100,
+        },
+      });
+
+      const productList = normalizeProducts(response.data);
+
+      const enrichedProducts = await Promise.all(
+        productList.map(async (product) => {
+          try {
+            const variantResponse = await axios.get(
+              `${API_BASE_URL}/products/${product._id}/variants`
+            );
+
+            return {
+              ...product,
+              variantSummary: buildVariantSummary(
+                normalizeVariants(variantResponse.data)
+              ),
+            };
+          } catch (error) {
+            console.warn(
+              `Could not load variants for product ${product._id}:`,
+              error
+            );
+
+            return {
+              ...product,
+              variantSummary: buildVariantSummary([]),
+            };
+          }
+        })
+      );
+
+      setProducts(enrichedProducts);
     } catch (error) {
-      console.error('Error fetching products:', error);
+      console.error("Admin products loading error:", error);
+
+      setLoadError(
+        error.response?.data?.message ||
+          "We couldn't load the product catalog."
+      );
+      setProducts([]);
+    } finally {
+      setLoadingProducts(false);
     }
   };
 
   const fetchOrders = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/order/`, {
-        headers: { Authorization: `Bearer ${adminInfo?.token}` }
+      setLoadingOrders(true);
+
+      const response = await axios.get(`${API_BASE_URL}/orders`, {
+        headers: authHeaders,
       });
-      setOrders(response.data);
-      const totalRevenue = response.data.reduce((sum, order) => sum + (order.subtotal || 0), 0);
-      setStats(prev => ({
-        ...prev,
-        totalOrders: response.data.length,
-        totalRevenue
-      }));
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // Delete product
-  const handleDeleteProduct = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      try {
-        await axios.delete(`${import.meta.env.VITE_BASE_URL}/products/${id}`, {
-          headers: { Authorization: `Bearer ${adminInfo?.token}` }
-        });
-        setProducts(products.filter(p => p._id !== id));
-        setStats(prev => ({ ...prev, totalProducts: prev.totalProducts - 1 }));
-      } catch (error) {
-        console.error('Delete error:', error);
-        alert(error.response?.data?.message || 'Failed to delete product');
+      setOrders(normalizeOrders(response.data));
+    } catch (error) {
+      console.error("Admin orders loading error:", error);
+
+      if (error.response?.status === 401) {
+        navigate("/admin/login", { replace: true });
+        return;
       }
+
+      setOrders([]);
+    } finally {
+      setLoadingOrders(false);
     }
   };
 
-  // Update order status
-  const updateOrderStatus = async (orderId, newStatus) => {
-    try {
-      await axios.put(`${import.meta.env.VITE_BASE_URL}/order/${orderId}/status`,
-        { status: newStatus },
-        { headers: { Authorization: `Bearer ${adminInfo?.token}` } }
-      );
-      // Refresh orders
-      fetchOrders();
-      alert(`Order status updated to ${newStatus}`);
-    } catch (error) {
-      console.error('Status update error:', error);
-      alert(error.response?.data?.message || 'Failed to update order status');
-    }
-  };
+  const stats = useMemo(() => {
+    const categoryKeys = new Set(
+      products
+        .map((product) => {
+          if (!product.category) return null;
 
-  const getImageUrl = (imagePath) => {
-    if (!imagePath) return null;
-    const cleanPath = imagePath.replace(/\\/g, '/');
-    return `http://localhost:5000/${cleanPath}`;
-  };
+          if (typeof product.category === "string") {
+            return product.category;
+          }
 
-  const getProductImage = (product) => {
-    if (product.images && product.images.length > 0) {
-      return getImageUrl(product.images[0]);
-    }
-    return null;
-  };
-
-  // Status badge component
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      pending: { color: 'bg-yellow-100 text-yellow-800', icon: FaClock, label: 'Pending' },
-      confirmed: { color: 'bg-blue-100 text-blue-800', icon: FaCheckCircle, label: 'Confirmed' },
-      processing: { color: 'bg-purple-100 text-purple-800', icon: FaSpinner, label: 'Processing' },
-      shipped: { color: 'bg-indigo-100 text-indigo-800', icon: FaTruck, label: 'Shipped' },
-      delivered: { color: 'bg-green-100 text-green-800', icon: FaCheckCircle, label: 'Delivered' },
-      cancelled: { color: 'bg-red-100 text-red-800', icon: FaTimesCircle, label: 'Cancelled' }
-    };
-    const config = statusConfig[status] || statusConfig.pending;
-    const Icon = config.icon;
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${config.color}`}>
-        <Icon className="w-3 h-3" />
-        {config.label}
-      </span>
+          return (
+            product.category._id ||
+            product.category.slug ||
+            product.category.name
+          );
+        })
+        .filter(Boolean)
     );
+
+    const orderValue = orders
+      .filter((order) => order.status !== "cancelled")
+      .reduce(
+        (sum, order) => sum + Number(order.subtotal || 0),
+        0
+      );
+
+    const pendingOrders = orders.filter(
+      (order) => order.status === "pending"
+    ).length;
+
+    return {
+      totalProducts: products.length,
+      activeProducts: products.filter(
+        (product) => product.status === "active"
+      ).length,
+      categories: categoryKeys.size,
+      totalOrders: orders.length,
+      pendingOrders,
+      orderValue,
+    };
+  }, [products, orders]);
+
+  const filteredProducts = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    if (!query) return products;
+
+    return products.filter((product) =>
+      [
+        product.name,
+        product.brand,
+        getCategoryName(product.category),
+        product.status,
+      ]
+        .filter(Boolean)
+        .some((value) =>
+          value.toString().toLowerCase().includes(query)
+        )
+    );
+  }, [products, searchTerm]);
+
+  const filteredOrders = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    if (!query) return orders;
+
+    return orders.filter((order) =>
+      [
+        order.orderNumber,
+        order.name,
+        order.email,
+        order.phone,
+        order.product?.name,
+        order.variant?.sku,
+        order.variantSnapshot?.sku,
+        order.status,
+      ]
+        .filter(Boolean)
+        .some((value) =>
+          value.toString().toLowerCase().includes(query)
+        )
+    );
+  }, [orders, searchTerm]);
+
+  const handleArchiveProduct = async () => {
+    if (!archiveTarget?._id || archiving) return;
+
+    try {
+      setArchiving(true);
+
+      await axios.delete(
+        `${API_BASE_URL}/products/${archiveTarget._id}`,
+        {
+          headers: authHeaders,
+        }
+      );
+
+      setProducts((current) =>
+        current.map((product) =>
+          product._id === archiveTarget._id
+            ? { ...product, status: "archived" }
+            : product
+        )
+      );
+
+      showNotice(
+        "success",
+        `${archiveTarget.name} has been archived.`
+      );
+
+      setArchiveTarget(null);
+    } catch (error) {
+      console.error("Archive product error:", error);
+
+      showNotice(
+        "error",
+        error.response?.data?.message ||
+          "Failed to archive this product."
+      );
+    } finally {
+      setArchiving(false);
+    }
   };
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' });
+  const updateOrderStatus = async (orderId, status) => {
+    if (!orderId || !status || updatingOrderId) return;
+
+    try {
+      setUpdatingOrderId(orderId);
+
+      const response = await axios.put(
+        `${API_BASE_URL}/orders/${orderId}/status`,
+        { status },
+        {
+          headers: authHeaders,
+        }
+      );
+
+      const updatedOrder =
+        response.data?.order ||
+        response.data;
+
+      setOrders((current) =>
+        current.map((order) =>
+          order._id === orderId
+            ? {
+                ...order,
+                ...(updatedOrder?._id ? updatedOrder : {}),
+                status,
+              }
+            : order
+        )
+      );
+
+      showNotice(
+        "success",
+        `Order status updated to ${status}.`
+      );
+    } catch (error) {
+      console.error("Order status update error:", error);
+
+      showNotice(
+        "error",
+        error.response?.data?.message ||
+          "Failed to update order status."
+      );
+    } finally {
+      setUpdatingOrderId("");
+    }
   };
+
+  if (!adminInfo?.token) {
+    return null;
+  }
+
+  const isLoading =
+    activeTab === "products"
+      ? loadingProducts
+      : loadingOrders;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
-          {activeTab === 'products' && (
-            <Link
-              to="/admin/products/new"
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+    <main className="min-h-screen bg-[#f5f6f8]">
+      {notice && (
+        <div className="fixed right-4 top-24 z-[70] w-[calc(100%-2rem)] max-w-sm">
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className={`flex items-start gap-3 rounded-2xl border p-4 shadow-[0_20px_60px_rgba(15,23,42,0.14)] ${
+              notice.type === "success"
+                ? "border-emerald-100 bg-white text-emerald-700"
+                : "border-red-100 bg-white text-red-700"
+            }`}
+          >
+            {notice.type === "success" ? (
+              <FaCheckCircle className="mt-0.5 shrink-0" />
+            ) : (
+              <FaExclamationTriangle className="mt-0.5 shrink-0" />
+            )}
+
+            <p className="flex-1 text-sm font-medium leading-5">
+              {notice.message}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              className="text-slate-300 transition hover:text-slate-700"
+              aria-label="Dismiss notification"
             >
-              <FaPlus />
-              Add Product
-            </Link>
+              <FaTimes className="text-xs" />
+            </button>
+          </motion.div>
+        </div>
+      )}
+
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-9 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-700">
+                <FaStore className="text-[9px]" />
+                ShopEase admin
+              </div>
+
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-4xl">
+                Commerce dashboard
+              </h1>
+
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                Manage products, monitor orders, and keep the storefront
+                inventory up to date.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Link
+                to="/products"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                View storefront
+                <FaArrowRight className="text-[9px]" />
+              </Link>
+
+              <Link
+                to="/admin/products/new"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-slate-800"
+              >
+                <FaPlus className="text-xs" />
+                Add product
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            {
+              label: "Products",
+              value: stats.totalProducts,
+              detail: `${stats.activeProducts} active`,
+              icon: FaBoxOpen,
+              iconClass: "bg-violet-50 text-violet-600",
+            },
+            {
+              label: "Categories",
+              value: stats.categories,
+              detail: "Across catalog",
+              icon: FaTag,
+              iconClass: "bg-blue-50 text-blue-600",
+            },
+            {
+              label: "Orders",
+              value: stats.totalOrders,
+              detail: `${stats.pendingOrders} awaiting action`,
+              icon: FaShoppingBag,
+              iconClass: "bg-amber-50 text-amber-600",
+            },
+            {
+              label: "Order value",
+              value: formatPrice(stats.orderValue),
+              detail: "Excluding cancelled",
+              icon: FaWallet,
+              iconClass: "bg-emerald-50 text-emerald-600",
+              compact: true,
+            },
+          ].map(
+            ({
+              label,
+              value,
+              detail,
+              icon: Icon,
+              iconClass,
+              compact,
+            }) => (
+              <div
+                key={label}
+                className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.025)]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-medium text-slate-400">
+                      {label}
+                    </p>
+                    <p
+                      className={`mt-2 font-semibold tracking-[-0.035em] text-slate-950 ${
+                        compact
+                          ? "text-xl sm:text-2xl"
+                          : "text-3xl"
+                      }`}
+                    >
+                      {value}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {detail}
+                    </p>
+                  </div>
+
+                  <div
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${iconClass}`}
+                  >
+                    <Icon />
+                  </div>
+                </div>
+              </div>
+            )
           )}
         </div>
-        
-        {/* Stats Cards - added Total Orders and Total Revenue */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Total Products</p>
-                <p className="text-3xl font-bold text-gray-800">{stats.totalProducts}</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <FaBoxOpen className="text-purple-600 text-xl" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Categories</p>
-                <p className="text-3xl font-bold text-gray-800">{stats.totalCategories}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <FaTag className="text-blue-600 text-xl" />
-              </div>
-            </div>
-          </div>
 
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Total Orders</p>
-                <p className="text-3xl font-bold text-gray-800">{stats.totalOrders}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <FaShoppingCart className="text-green-600 text-xl" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Total Revenue</p>
-                <p className="text-3xl font-bold text-green-600">₨ {stats.totalRevenue.toLocaleString()}</p>
-              </div>
-              <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                <FaDollarSign className="text-yellow-600 text-xl" />
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="border-b border-gray-200">
-            <nav className="flex gap-2 px-6">
+        <div className="mt-6 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_14px_45px_rgba(15,23,42,0.035)]">
+          <div className="border-b border-slate-200 px-4 sm:px-6">
+            <div className="flex min-w-max gap-1">
               <button
-                onClick={() => setActiveTab('products')}
-                className={`py-4 px-4 font-medium transition-all duration-200 border-b-2 ${
-                  activeTab === 'products'
-                    ? 'border-purple-600 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                type="button"
+                onClick={() => {
+                  setActiveTab("products");
+                  setSearchTerm("");
+                }}
+                className={`relative flex items-center gap-2 px-4 py-4 text-sm font-semibold transition ${
+                  activeTab === "products"
+                    ? "text-slate-950"
+                    : "text-slate-400 hover:text-slate-700"
                 }`}
               >
-                <FaBoxOpen className="inline mr-2" />
-                Products ({stats.totalProducts})
-              </button>
-              <button
-                onClick={() => setActiveTab('orders')}
-                className={`py-4 px-4 font-medium transition-all duration-200 border-b-2 ${
-                  activeTab === 'orders'
-                    ? 'border-purple-600 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <FaShoppingCart className="inline mr-2" />
-                Orders ({stats.totalOrders})
-              </button>
-            </nav>
-          </div>
+                <FaBoxOpen className="text-xs" />
+                Products
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+                  {stats.totalProducts}
+                </span>
 
-          <div className="p-6">
-            {/* Products Tab */}
-            {activeTab === 'products' && (
-              <>
-                {loading ? (
-                  <div className="p-12 text-center">
-                    <FaSpinner className="animate-spin text-4xl text-purple-600 mx-auto" />
-                  </div>
-                ) : products.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FaBoxOpen className="text-6xl text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">No products yet</p>
-                    <Link to="/admin/products/new" className="inline-block mt-4 text-purple-600 hover:text-purple-700">
-                      Add your first product
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Images</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {products.map(product => {
-                          const productImage = getProductImage(product);
-                          return (
-                            <tr key={product._id} className="hover:bg-gray-50">
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  {productImage ? (
-                                    <img
-                                      src={productImage}
-                                      alt={product.name}
-                                      className="w-10 h-10 rounded-lg object-cover"
-                                      onError={(e) => e.target.src = 'https://via.placeholder.com/40?text=No+Image'}
-                                    />
-                                  ) : (
-                                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                                      <FaImage className="text-gray-400" />
-                                    </div>
-                                  )}
-                                  <span className="font-medium text-gray-800 line-clamp-1">{product.name}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="px-2 py-1 bg-gray-100 rounded-full text-xs">{product.category || 'Uncategorized'}</span>
-                              </td>
-                              <td className="px-6 py-4 font-semibold text-gray-800">₨ {product.price}</td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-1">
-                                  <FaImage className="text-gray-400" />
-                                  <span className="text-sm text-gray-600">{product.images?.length || 0}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <Link to={`/admin/products/edit/${product._id}`} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Product">
-                                    <FaEdit />
-                                  </Link>
-                                  <button onClick={() => handleDeleteProduct(product._id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Product">
-                                    <FaTrash />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                {activeTab === "products" && (
+                  <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-slate-950" />
                 )}
-              </>
-            )}
+              </button>
 
-            {/* Orders Tab */}
-            {activeTab === 'orders' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("orders");
+                  setSearchTerm("");
+                }}
+                className={`relative flex items-center gap-2 px-4 py-4 text-sm font-semibold transition ${
+                  activeTab === "orders"
+                    ? "text-slate-950"
+                    : "text-slate-400 hover:text-slate-700"
+                }`}
+              >
+                <FaShoppingBag className="text-xs" />
+                Orders
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+                  {stats.totalOrders}
+                </span>
+
+                {activeTab === "orders" && (
+                  <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-slate-950" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="border-b border-slate-100 p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full sm:max-w-sm">
+                <FaSearch className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xs text-slate-400" />
+                <input
+                  type="search"
+                  value={searchTerm}
+                  onChange={(event) =>
+                    setSearchTerm(event.target.value)
+                  }
+                  placeholder={
+                    activeTab === "products"
+                      ? "Search products..."
+                      : "Search orders..."
+                  }
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:bg-white focus:border-slate-300 focus:bg-white focus:ring-4 focus:ring-slate-100"
+                />
+              </div>
+
+              <p className="text-xs text-slate-400">
+                {activeTab === "products"
+                  ? `${filteredProducts.length} catalog ${
+                      filteredProducts.length === 1 ? "item" : "items"
+                    }`
+                  : `${filteredOrders.length} ${
+                      filteredOrders.length === 1 ? "order" : "orders"
+                    }`}
+              </p>
+            </div>
+          </div>
+
+          {loadError && activeTab === "products" && (
+            <div className="mx-4 mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700 sm:mx-5">
+              {loadError}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="flex min-h-[360px] items-center justify-center">
+              <div className="text-center">
+                <FaSpinner className="mx-auto animate-spin text-2xl text-violet-600" />
+                <p className="mt-3 text-sm text-slate-400">
+                  Loading {activeTab}...
+                </p>
+              </div>
+            </div>
+          ) : activeTab === "products" ? (
+            filteredProducts.length === 0 ? (
+              <EmptyState
+                icon={FaBoxOpen}
+                title="No products found"
+                description={
+                  searchTerm
+                    ? "Try another search term."
+                    : "Create your first product to start building the catalog."
+                }
+                action={
+                  !searchTerm ? (
+                    <Link
+                      to="/admin/products/new"
+                      className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
+                    >
+                      <FaPlus className="text-xs" />
+                      Add product
+                    </Link>
+                  ) : null
+                }
+              />
+            ) : (
               <>
-                {loading ? (
-                  <div className="p-12 text-center">
-                    <FaSpinner className="animate-spin text-4xl text-purple-600 mx-auto" />
-                  </div>
-                ) : orders.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FaShoppingCart className="text-6xl text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">No orders yet</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {orders.map(order => (
-                          <tr key={order._id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-mono text-xs text-gray-600">{order.orderNumber || order._id.slice(-8)}</td>
-                            <td className="px-4 py-3">
-                              <div>
-                                <p className="font-medium text-gray-800">{order.name}</p>
-                                <p className="text-xs text-gray-500">{order.email}</p>
+                <div className="hidden overflow-x-auto lg:block">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/60 text-left">
+                        <th className="px-6 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Product
+                        </th>
+                        <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Category
+                        </th>
+                        <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Variants
+                        </th>
+                        <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Price
+                        </th>
+                        <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Stock
+                        </th>
+                        <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Status
+                        </th>
+                        <th className="px-6 py-3.5 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredProducts.map((product) => {
+                        const summary =
+                          product.variantSummary ||
+                          buildVariantSummary([]);
+
+                        const image = product.images?.[0];
+
+                        return (
+                          <tr
+                            key={product._id}
+                            className="transition hover:bg-slate-50/70"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                                  <img
+                                    src={getImageUrl(image)}
+                                    alt={product.name}
+                                    className="h-full w-full object-cover"
+                                  />
+                                </div>
+
+                                <div className="min-w-0">
+                                  <p className="max-w-[240px] truncate text-sm font-semibold text-slate-950">
+                                    {product.name}
+                                  </p>
+                                  <p className="mt-1 max-w-[240px] truncate text-xs text-slate-400">
+                                    {product.brand ||
+                                      product.slug ||
+                                      "No brand"}
+                                  </p>
+                                </div>
                               </div>
-                             </td>
-                            <td className="px-4 py-3">
-                              {order.product ? (
-                                <div className="flex items-center gap-2">
-                                  {order.product.images && order.product.images[0] && (
-                                    <img src={getImageUrl(order.product.images[0])} alt="" className="w-8 h-8 rounded object-cover" />
-                                  )}
-                                  <span className="text-sm text-gray-700 line-clamp-1">{order.product.name}</span>
+                            </td>
+
+                            <td className="px-5 py-4 text-sm text-slate-600">
+                              {getCategoryName(product.category)}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <div className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                                <FaLayerGroup className="text-[10px] text-slate-400" />
+                                {summary.variantCount}
+                              </div>
+                            </td>
+
+                            <td className="px-5 py-4">
+                              {summary.minPrice !== null ? (
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    {formatPrice(summary.minPrice)}
+                                  </p>
+                                  {summary.maxPrice !== null &&
+                                    summary.maxPrice >
+                                      summary.minPrice && (
+                                      <p className="mt-0.5 text-[10px] text-slate-400">
+                                        up to{" "}
+                                        {formatPrice(
+                                          summary.maxPrice
+                                        )}
+                                      </p>
+                                    )}
                                 </div>
                               ) : (
-                                <span className="text-sm text-gray-500">N/A</span>
+                                <span className="text-xs text-slate-400">
+                                  No variants
+                                </span>
                               )}
-                             </td>
-                            <td className="px-4 py-3 text-center">{order.quantity}</td>
-                            <td className="px-4 py-3 font-semibold text-gray-800">₨ {order.subtotal}</td>
-                            <td className="px-4 py-3">{getStatusBadge(order.status)}</td>
-                            <td className="px-4 py-3 text-sm text-gray-500">{formatDate(order.createdAt)}</td>
-                            <td className="px-4 py-3">
-                              <select
-                                value={order.status}
-                                onChange={(e) => updateOrderStatus(order._id, e.target.value)}
-                                className="text-xs border rounded px-2 py-1 focus:ring-purple-500"
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <span
+                                className={`text-sm font-semibold ${
+                                  summary.totalStock > 0
+                                    ? "text-slate-900"
+                                    : "text-red-500"
+                                }`}
                               >
-                                <option value="pending">Pending</option>
-                                <option value="confirmed">Confirmed</option>
-                                <option value="processing">Processing</option>
-                                <option value="shipped">Shipped</option>
-                                <option value="delivered">Delivered</option>
-                                <option value="cancelled">Cancelled</option>
-                              </select>
-                             </td>
-                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                                {summary.totalStock}
+                              </span>
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <ProductStatusBadge
+                                status={product.status}
+                              />
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <div className="flex items-center justify-end gap-2">
+                                <Link
+                                  to={`/admin/products/edit/${product._id}`}
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
+                                  title="Edit product"
+                                >
+                                  <FaEdit className="text-xs" />
+                                </Link>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setArchiveTarget(product)
+                                  }
+                                  disabled={
+                                    product.status === "archived"
+                                  }
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
+                                  title="Archive product"
+                                >
+                                  <FaArchive className="text-xs" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="divide-y divide-slate-100 lg:hidden">
+                  {filteredProducts.map((product) => {
+                    const summary =
+                      product.variantSummary ||
+                      buildVariantSummary([]);
+
+                    return (
+                      <div key={product._id} className="p-4 sm:p-5">
+                        <div className="flex gap-3">
+                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                            <img
+                              src={getImageUrl(product.images?.[0])}
+                              alt={product.name}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-slate-950">
+                                  {product.name}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {getCategoryName(
+                                    product.category
+                                  )}
+                                </p>
+                              </div>
+                              <ProductStatusBadge
+                                status={product.status}
+                              />
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
+                              <span>
+                                {summary.variantCount} variants
+                              </span>
+                              <span>{summary.totalStock} stock</span>
+                              <span className="font-semibold text-slate-800">
+                                {summary.minPrice !== null
+                                  ? formatPrice(summary.minPrice)
+                                  : "No price"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex gap-2">
+                          <Link
+                            to={`/admin/products/edit/${product._id}`}
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700"
+                          >
+                            <FaEdit />
+                            Edit
+                          </Link>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setArchiveTarget(product)
+                            }
+                            disabled={
+                              product.status === "archived"
+                            }
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-100 px-4 py-2.5 text-xs font-semibold text-red-600 disabled:opacity-30"
+                          >
+                            <FaArchive />
+                            Archive
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </>
-            )}
-          </div>
+            )
+          ) : filteredOrders.length === 0 ? (
+            <EmptyState
+              icon={FaShoppingBag}
+              title="No orders found"
+              description={
+                searchTerm
+                  ? "Try another search term."
+                  : "Customer orders will appear here when they are placed."
+              }
+            />
+          ) : (
+            <>
+              <div className="hidden overflow-x-auto xl:block">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/60 text-left">
+                      <th className="px-6 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Order
+                      </th>
+                      <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Customer
+                      </th>
+                      <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Product
+                      </th>
+                      <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Total
+                      </th>
+                      <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Date
+                      </th>
+                      <th className="px-6 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredOrders.map((order) => {
+                      const productName =
+                        order.product?.name ||
+                        "Product unavailable";
+
+                      const sku =
+                        order.variant?.sku ||
+                        order.variantSnapshot?.sku ||
+                        "";
+
+                      return (
+                        <tr
+                          key={order._id}
+                          className="transition hover:bg-slate-50/70"
+                        >
+                          <td className="px-6 py-4">
+                            <p className="font-mono text-xs font-semibold text-slate-800">
+                              {order.orderNumber ||
+                                `#${order._id
+                                  ?.slice(-8)
+                                  ?.toUpperCase()}`}
+                            </p>
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Qty {order.quantity || 1}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {order.name || "Customer"}
+                            </p>
+                            <p className="mt-1 max-w-[220px] truncate text-xs text-slate-400">
+                              {order.email || order.phone || "—"}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <p className="max-w-[220px] truncate text-sm font-medium text-slate-800">
+                              {productName}
+                            </p>
+                            {sku && (
+                              <p className="mt-1 font-mono text-[10px] text-slate-400">
+                                {sku}
+                              </p>
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-900">
+                            {formatPrice(order.subtotal)}
+                          </td>
+
+                          <td className="px-5 py-4 text-xs text-slate-500">
+                            {formatDate(order.createdAt)}
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <StatusBadge
+                                status={order.status}
+                              />
+
+                              <div className="relative">
+                                <select
+                                  value={
+                                    order.status || "pending"
+                                  }
+                                  onChange={(event) =>
+                                    updateOrderStatus(
+                                      order._id,
+                                      event.target.value
+                                    )
+                                  }
+                                  disabled={
+                                    updatingOrderId === order._id
+                                  }
+                                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 pr-8 text-xs font-semibold text-slate-600 outline-none transition hover:border-slate-300 focus:border-slate-400 disabled:cursor-wait disabled:opacity-50"
+                                >
+                                  {ORDER_STATUSES.map(
+                                    (status) => (
+                                      <option
+                                        key={status}
+                                        value={status}
+                                      >
+                                        {status
+                                          .charAt(0)
+                                          .toUpperCase() +
+                                          status.slice(1)}
+                                      </option>
+                                    )
+                                  )}
+                                </select>
+
+                                {updatingOrderId ===
+                                  order._id && (
+                                  <FaSpinner className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-[10px] text-violet-600" />
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="divide-y divide-slate-100 xl:hidden">
+                {filteredOrders.map((order) => {
+                  const productName =
+                    order.product?.name ||
+                    "Product unavailable";
+
+                  const sku =
+                    order.variant?.sku ||
+                    order.variantSnapshot?.sku ||
+                    "";
+
+                  return (
+                    <div key={order._id} className="p-4 sm:p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-mono text-xs font-semibold text-slate-800">
+                            {order.orderNumber ||
+                              `#${order._id
+                                ?.slice(-8)
+                                ?.toUpperCase()}`}
+                          </p>
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            {formatDate(order.createdAt)}
+                          </p>
+                        </div>
+
+                        <StatusBadge status={order.status} />
+                      </div>
+
+                      <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-2">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                            Customer
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {order.name || "Customer"}
+                          </p>
+                          <p className="mt-1 truncate text-xs text-slate-500">
+                            {order.email ||
+                              order.phone ||
+                              "No contact"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                            Product
+                          </p>
+                          <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                            {productName}
+                          </p>
+                          {sku && (
+                            <p className="mt-1 font-mono text-[10px] text-slate-400">
+                              {sku}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.1em] text-slate-400">
+                            Total
+                          </p>
+                          <p className="mt-1 text-lg font-semibold text-slate-950">
+                            {formatPrice(order.subtotal)}
+                          </p>
+                        </div>
+
+                        <select
+                          value={order.status || "pending"}
+                          onChange={(event) =>
+                            updateOrderStatus(
+                              order._id,
+                              event.target.value
+                            )
+                          }
+                          disabled={
+                            updatingOrderId === order._id
+                          }
+                          className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none"
+                        >
+                          {ORDER_STATUSES.map((status) => (
+                            <option key={status} value={status}>
+                              {status.charAt(0).toUpperCase() +
+                                status.slice(1)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
-      </div>
-    </div>
+      </section>
+
+      {archiveTarget && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_30px_100px_rgba(15,23,42,0.2)]"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+              <FaArchive />
+            </div>
+
+            <h2 className="mt-5 text-xl font-semibold tracking-tight text-slate-950">
+              Archive this product?
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              <span className="font-semibold text-slate-700">
+                {archiveTarget.name}
+              </span>{" "}
+              will be removed from the active storefront catalog. This uses
+              your backend's archive behavior rather than permanently deleting
+              the record.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setArchiveTarget(null)}
+                disabled={archiving}
+                className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleArchiveProduct}
+                disabled={archiving}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
+              >
+                {archiving ? (
+                  <>
+                    <FaSpinner className="animate-spin" />
+                    Archiving...
+                  </>
+                ) : (
+                  <>
+                    <FaArchive />
+                    Archive product
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </main>
   );
 };
 

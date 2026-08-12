@@ -1,245 +1,374 @@
-// frontend/src/pages/ContactUs.jsx
-import React, { useState } from 'react';
-import { FaEnvelope, FaPhone, FaMapMarkerAlt, FaClock, FaFacebook, FaTwitter, FaInstagram, FaLinkedin, FaPaperPlane, FaCheckCircle, FaSpinner } from 'react-icons/fa';
+
+import React, { useState } from "react";
+import { motion } from "framer-motion";
+import {
+  FaArrowRight,
+  FaCheckCircle,
+  FaEnvelope,
+  FaGithub,
+  FaLinkedinIn,
+  FaPaperPlane,
+  FaShieldAlt,
+  FaStore,
+} from "react-icons/fa";
+
+const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || "";
+
+const LINKEDIN_URL =
+  "https://www.linkedin.com/in/syed-muharram-ali-0118a9428/";
+const GITHUB_URL = "https://github.com/syedmuharramali";
+
+const inputClass = (hasError = false) =>
+  `w-full rounded-2xl border bg-white px-4 py-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 ${
+    hasError
+      ? "border-red-300 ring-4 ring-red-50 focus:border-red-400"
+      : "border-slate-200 hover:border-slate-300 focus:border-slate-900 focus:ring-4 focus:ring-slate-100"
+  }`;
 
 const ContactUs = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: ''
+    name: "",
+    email: "",
+    subject: "",
+    message: "",
   });
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const [errors, setErrors] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
+
+    if (errors[name] || errors.submit) {
+      setErrors((current) => ({
+        ...current,
+        [name]: "",
+        submit: "",
+      }));
+    }
+
+    if (submitted) {
+      setSubmitted(false);
+    }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!formData.name || !formData.email || !formData.message) {
-      setError('Please fill in all required fields');
+  const validate = () => {
+    const nextErrors = {};
+
+    if (!formData.name.trim()) {
+      nextErrors.name = "Please enter your name.";
+    }
+
+    if (!formData.email.trim()) {
+      nextErrors.email = "Please enter your email.";
+    } else if (!/^\S+@\S+\.\S+$/.test(formData.email.trim())) {
+      nextErrors.email = "Please enter a valid email address.";
+    }
+
+    if (!formData.subject.trim()) {
+      nextErrors.subject = "Please add a subject.";
+    }
+
+    if (!formData.message.trim()) {
+      nextErrors.message = "Please enter your message.";
+    } else if (formData.message.trim().length < 10) {
+      nextErrors.message = "Please provide a little more detail.";
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+
+    if (!validate()) return;
+
+    if (!CONTACT_EMAIL) {
+      setErrors({
+        submit:
+          "Contact email is not configured yet. Please use LinkedIn for now.",
+      });
       return;
     }
-    
-    setLoading(true);
-    setError('');
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      setSuccess(true);
-      setFormData({ name: '', email: '', subject: '', message: '' });
-      setTimeout(() => setSuccess(false), 5000);
-    }, 1500);
+
+    const subject = encodeURIComponent(
+      `[ShopEase] ${formData.subject.trim()}`
+    );
+
+    const body = encodeURIComponent(
+      [
+        `Name: ${formData.name.trim()}`,
+        `Email: ${formData.email.trim()}`,
+        "",
+        formData.message.trim(),
+      ].join("\n")
+    );
+
+    setSubmitted(true);
+
+    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-            Contact Us
-          </h1>
-          <p className="text-gray-600 mt-4 max-w-2xl mx-auto">
-            Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
-          </p>
-        </div>
+    <main className="min-h-screen bg-[#f7f7f5]">
+      <section className="relative overflow-hidden bg-white">
+        <div className="absolute -left-24 top-8 h-72 w-72 rounded-full bg-violet-100/60 blur-3xl" />
+        <div className="absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-blue-100/60 blur-3xl" />
 
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Contact Information */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">Get in Touch</h2>
-              
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <FaEnvelope className="text-purple-600" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:py-24">
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55 }}
+          >
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-violet-50 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-700">
+              <FaEnvelope className="text-[10px]" />
+              Get in touch
+            </div>
+
+            <h1 className="mt-7 text-4xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-5xl lg:text-6xl">
+              Questions?
+              <span className="block text-slate-400">
+                We’re here to help.
+              </span>
+            </h1>
+
+            <p className="mt-6 max-w-xl text-base leading-8 text-slate-500">
+              Whether you have a product question, need help with an order, or
+              want to discuss the ShopEase project, send a message and we’ll
+              point you in the right direction.
+            </p>
+
+            <div className="mt-9 grid gap-3 sm:grid-cols-2">
+              <a
+                href={LINKEDIN_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="group rounded-[24px] border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_45px_rgba(15,23,42,0.07)]"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0A66C2]/10 text-[#0A66C2]">
+                    <FaLinkedinIn />
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-800">Email Us</p>
-                    <p className="text-gray-500 text-sm">support@shopease.com</p>
-                    <p className="text-gray-500 text-sm">sales@shopease.com</p>
-                  </div>
+                  <FaArrowRight className="text-[10px] text-slate-300 transition group-hover:translate-x-1 group-hover:text-slate-700" />
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <FaPhone className="text-purple-600" />
+                <p className="mt-4 text-sm font-semibold text-slate-950">
+                  LinkedIn
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Professional inquiries and project discussions.
+                </p>
+              </a>
+
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="group rounded-[24px] border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_45px_rgba(15,23,42,0.07)]"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950/5 text-slate-900">
+                    <FaGithub />
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-800">Call Us</p>
-                    <p className="text-gray-500 text-sm">+1 (555) 123-4567</p>
-                    <p className="text-gray-500 text-sm">+1 (555) 987-6543</p>
-                  </div>
+                  <FaArrowRight className="text-[10px] text-slate-300 transition group-hover:translate-x-1 group-hover:text-slate-700" />
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <FaMapMarkerAlt className="text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">Visit Us</p>
-                    <p className="text-gray-500 text-sm">
-                      Nomal Valley<br />
-                      Gilgit Baltistan<br />
-                      Pakistan
-                    </p>
-                  </div>
-                </div>
+                <p className="mt-4 text-sm font-semibold text-slate-950">
+                  GitHub
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Explore projects, code, and development work.
+                </p>
+              </a>
+            </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <FaClock className="text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">Business Hours</p>
-                    <p className="text-gray-500 text-sm">Monday - Friday: 9am - 6pm</p>
-                    <p className="text-gray-500 text-sm">Saturday: 10am - 4pm</p>
-                    <p className="text-gray-500 text-sm">Sunday: Closed</p>
-                  </div>
-                </div>
+            <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-xs font-medium text-slate-500">
+              <span className="inline-flex items-center gap-2">
+                <FaShieldAlt className="text-violet-500" />
+                Clear communication
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <FaCheckCircle className="text-emerald-500" />
+                No fake support details
+              </span>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.08 }}
+            className="rounded-[34px] border border-slate-200 bg-white p-5 shadow-[0_30px_90px_rgba(15,23,42,0.09)] sm:p-8"
+          >
+            <div className="mb-7 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-600">
+                  Send a message
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950">
+                  Tell us how we can help
+                </h2>
+              </div>
+
+              <div className="hidden h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white sm:flex">
+                <FaPaperPlane />
               </div>
             </div>
 
-            {/* Social Media */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Follow Us</h2>
-              <p className="text-gray-500 text-sm mb-4">Connect with us on social media</p>
-              <div className="flex gap-3">
-                <a href="#" className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-purple-100 hover:text-purple-600 transition-all">
-                  <FaFacebook className="text-gray-600" />
-                </a>
-                <a href="#" className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-purple-100 hover:text-purple-600 transition-all">
-                  <FaTwitter className="text-gray-600" />
-                </a>
-                <a href="#" className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-purple-100 hover:text-purple-600 transition-all">
-                  <FaInstagram className="text-gray-600" />
-                </a>
-                <a href="#" className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center hover:bg-purple-100 hover:text-purple-600 transition-all">
-                  <FaLinkedin className="text-gray-600" />
-                </a>
+            {submitted && (
+              <div className="mb-6 flex gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-700">
+                <FaCheckCircle className="mt-0.5 shrink-0" />
+                <span>Your email app should open with the message ready.</span>
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* Contact Form */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
-              <h2 className="text-2xl font-semibold text-gray-800 mb-6">Send us a Message</h2>
-              
-              {success && (
-                <div className="mb-6 p-4 bg-green-50 border border-green-500 rounded-lg flex items-center gap-2">
-                  <FaCheckCircle className="text-green-500" />
-                  <p className="text-green-700">Thank you! Your message has been sent successfully.</p>
-                </div>
-              )}
-              
-              {error && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-500 rounded-lg">
-                  <p className="text-red-700">{error}</p>
-                </div>
-              )}
-              
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="grid md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Your Name *
-                    </label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="John Doe"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Your Email *
-                    </label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="john@example.com"
-                    />
-                  </div>
-                </div>
-                
+            {errors.submit && (
+              <div className="mb-6 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+                {errors.submit}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="grid gap-5 sm:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Subject
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Your name
                   </label>
                   <input
                     type="text"
-                    name="subject"
-                    value={formData.subject}
+                    name="name"
+                    value={formData.name}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    placeholder="How can we help you?"
+                    placeholder="Your full name"
+                    autoComplete="name"
+                    className={inputClass(Boolean(errors.name))}
                   />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Message *
-                  </label>
-                  <textarea
-                    name="message"
-                    rows="6"
-                    value={formData.message}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                    placeholder="Please describe your question or concern..."
-                  />
-                </div>
-                
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {loading ? (
-                    <>
-                      <FaSpinner className="animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <FaPaperPlane />
-                      Send Message
-                    </>
+                  {errors.name && (
+                    <p className="mt-2 text-xs font-medium text-red-600">
+                      {errors.name}
+                    </p>
                   )}
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
+                </div>
 
-        {/* Map Section */}
-        {/* <div className="mt-12">
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-800">Find Us</h2>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    className={inputClass(Boolean(errors.email))}
+                  />
+                  {errors.email && (
+                    <p className="mt-2 text-xs font-medium text-red-600">
+                      {errors.email}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  name="subject"
+                  value={formData.subject}
+                  onChange={handleChange}
+                  placeholder="What can we help you with?"
+                  className={inputClass(Boolean(errors.subject))}
+                />
+                {errors.subject && (
+                  <p className="mt-2 text-xs font-medium text-red-600">
+                    {errors.subject}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Message
+                </label>
+                <textarea
+                  name="message"
+                  value={formData.message}
+                  onChange={handleChange}
+                  rows={6}
+                  placeholder="Share the details here..."
+                  className={`${inputClass(
+                    Boolean(errors.message)
+                  )} resize-none`}
+                />
+                <div className="mt-2 flex items-center justify-between gap-4">
+                  {errors.message ? (
+                    <p className="text-xs font-medium text-red-600">
+                      {errors.message}
+                    </p>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="text-[10px] text-slate-400">
+                    {formData.message.length} characters
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5 hover:bg-slate-800"
+              >
+                <FaPaperPlane className="text-xs" />
+                Send message
+              </button>
+
+              <p className="text-center text-[11px] leading-5 text-slate-400">
+                This form opens your email app so you stay in control of what
+                is sent.
+              </p>
+            </form>
+          </motion.div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
+        <div className="overflow-hidden rounded-[34px] bg-slate-950 px-6 py-9 text-white sm:px-10 lg:flex lg:items-center lg:justify-between lg:gap-10">
+          <div className="max-w-2xl">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-violet-300">
+              <FaStore />
             </div>
-            <div className="h-80 bg-gray-200 flex items-center justify-center">
-              <p className="text-gray-500">Map Integration Here</p>
-            
-            </div>
+            <h2 className="mt-5 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
+              ShopEase is built with real commerce workflows in mind.
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-white/50">
+              Product variants, stock-aware checkout, responsive storefront
+              experiences, and a backend designed for real ecommerce flows.
+            </p>
           </div>
-        </div> */}
-      </div>
-    </div>
+
+          <a
+            href={LINKEDIN_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-7 inline-flex shrink-0 items-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:bg-slate-100 lg:mt-0"
+          >
+            Connect on LinkedIn
+            <FaArrowRight className="text-[10px]" />
+          </a>
+        </div>
+      </section>
+    </main>
   );
 };
 

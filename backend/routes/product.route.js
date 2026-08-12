@@ -1,25 +1,46 @@
-// backend/routes/productRoutes.js
-const express = require('express');
-const router = express.Router();
-const upload = require('../middleware/uploadMiddleware');
-const { protect, admin } = require('../middleware/authMiddleware');
+const express = require("express");
+
 const {
   getProducts,
   getProductById,
+  getProductBySlug,
   createProduct,
   updateProduct,
   deleteProduct,
-  getProductByName
-} = require('../controllers/product.controller.js');
+} = require("../controllers/product.controller");
 
-// Public routes
-router.get('/', getProducts);
-router.get('/:id', getProductById);
-router.get('/searchByName/:name',getProductByName);
+const {
+  protect,
+  admin,
+} = require("../middleware/authMiddleware");
 
-// Admin only routes
-router.post('/', protect, admin, upload.array("images"), createProduct);
-router.put('/:id', protect, admin, upload.array("images"), updateProduct);
-router.delete('/:id', protect, admin, deleteProduct);
+const router = express.Router();
+
+router.get("/", getProducts);
+
+router.get("/slug/:slug", getProductBySlug);
+
+router.get("/:id", getProductById);
+
+router.post(
+  "/",
+  protect,
+  admin,
+  createProduct
+);
+
+router.patch(
+  "/:id",
+  protect,
+  admin,
+  updateProduct
+);
+
+router.delete(
+  "/:id",
+  protect,
+  admin,
+  deleteProduct
+);
 
 module.exports = router;

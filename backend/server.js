@@ -1,39 +1,120 @@
-// backend/server.js
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const path = require('path');
-require('dotenv').config();
-
-const authRoutes = require('./routes/user.route.js');
-const productRoutes = require('./routes/product.route.js');
-const emailRoutes = require('./routes/email.route.js');
-const orderRoutes=require("./routes/order.route.js")
-const {createDefaultAdmin}=require("./controllers/user.controller.js")
-
+const express = require("express");
+const mongoose = require("mongoose");
+const cors=require('cors');
+const path = require("path");
+require("dotenv").config();
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/email', emailRoutes);
-app.use("/api/order",orderRoutes);
-
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(async() => {
-    console.log('Connected to MongoDB');
-    await createDefaultAdmin();
-  })
-  .catch(err => console.error('MongoDB connection error:', err));
-
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+/*
+ * ----------------------------------------
+ * Middleware
+ * ----------------------------------------
+ */
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors())
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "uploads"))
+);
+
+/*
+ * ----------------------------------------
+ * Routes
+ * ----------------------------------------
+ */
+
+const userRoutes = require("./routes/user.route");
+const productRoutes = require("./routes/product.route");
+const productOptionRoutes = require(
+  "./routes/productOption.route"
+);
+const productVariantRoutes = require(
+  "./routes/productVariant.route"
+);
+const orderRoutes = require("./routes/order.route.js");
+
+app.use("/api/users", userRoutes);
+app.use("/api/products", productRoutes);
+app.use(
+  "/api/products",
+  productOptionRoutes
+);
+app.use(
+  "/api/products",
+  productVariantRoutes
+);
+app.use("/api/orders", orderRoutes);
+/*
+ * ----------------------------------------
+ * Health Check
+ * ----------------------------------------
+ */
+
+app.get("/", (req, res) => {
+  res.status(200).json({
+    message: "ShopEase API is running",
+  });
 });
+
+/*
+ * ----------------------------------------
+ * 404 Handler
+ * ----------------------------------------
+ */
+
+app.use((req, res) => {
+  res.status(404).json({
+    message: "Route not found",
+  });
+});
+
+/*
+ * ----------------------------------------
+ * Global Error Handler
+ * ----------------------------------------
+ */
+
+app.use((err, req, res, next) => {
+  console.error("Server error:", err);
+
+  res.status(err.status || 500).json({
+    message:
+      err.message || "Internal server error",
+  });
+});
+
+/*
+ * ----------------------------------------
+ * Database + Server
+ * ----------------------------------------
+ */
+
+async function startServer() {
+  try {
+    await mongoose.connect(
+      process.env.MONGODB_URI
+    );
+
+    console.log("Connected to MongoDB");
+
+    app.listen(PORT, () => {
+      console.log(
+        `ShopEase API running on port ${PORT}`
+      );
+    });
+  } catch (error) {
+    console.error(
+      "Failed to start server:",
+      error
+    );
+
+    process.exit(1);
+  }
+}
+
+startServer();

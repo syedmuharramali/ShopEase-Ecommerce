@@ -1,213 +1,280 @@
-// frontend/src/pages/AdminLogin.jsx
-import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router';
-import axios from 'axios';
-import { setCredentials } from '../slices/authSlice';
-import { FaUser, FaLock, FaSpinner, FaStore, FaEye, FaEyeSlash, FaShieldAlt, FaArrowRight } from 'react-icons/fa';
+
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router";
+import { useDispatch, useSelector } from "react-redux";
+import axios from "axios";
+import { motion } from "framer-motion";
+import {
+  FaArrowLeft,
+  FaCheckCircle,
+  FaEye,
+  FaEyeSlash,
+  FaLock,
+  FaShieldAlt,
+  FaSpinner,
+  FaStore,
+  FaUser,
+} from "react-icons/fa";
+import { setCredentials } from "../slices/authSlice";
+
+const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
 
 const AdminLogin = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
-  
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { adminInfo } = useSelector((state) => state.auth);
 
-  useEffect(() => {
-    if (adminInfo) {
-      navigate('/admin/dashboard');
-    }
-  }, [adminInfo, navigate]);
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  useEffect(() => {
+    if (adminInfo?.token) {
+      navigate("/admin/dashboard", { replace: true });
+    }
+  }, [adminInfo?.token, navigate]);
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
+
+    if (error) setError("");
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    const email = formData.email.trim().toLowerCase();
+    const password = formData.password;
+
     if (!email || !password) {
-      setError('Please fill in all fields');
+      setError("Enter your admin email and password.");
       return;
     }
-    
-    setLoading(true);
-    setError('');
-    
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setError("Enter a valid email address.");
+      return;
+    }
+
     try {
-      const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/auth/login`, {
-        email,
-        password
-      });
-      
+      setLoading(true);
+      setError("");
+
+      const response = await axios.post(
+        `${API_BASE_URL}/users/login`,
+        {
+          email,
+          password,
+        }
+      );
+
+      if (!response.data?.token) {
+        throw new Error("Login succeeded but no access token was returned.");
+      }
+
       dispatch(setCredentials(response.data));
-      navigate('/admin/dashboard');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Invalid credentials');
+      navigate("/admin/dashboard", { replace: true });
+    } catch (requestError) {
+      console.error("Admin login error:", requestError);
+
+      setError(
+        requestError.response?.data?.message ||
+          requestError.message ||
+          "Unable to sign in. Check your credentials and try again."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen  from-purple-600 via-purple-700 to-blue-600 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-1000"></div>
-      </div>
+    <main className="relative min-h-[calc(100vh-72px)] overflow-hidden bg-[#f5f6f8]">
+      <div className="absolute -left-28 top-16 h-96 w-96 rounded-full bg-violet-200/55 blur-3xl" />
+      <div className="absolute -right-28 bottom-10 h-96 w-96 rounded-full bg-blue-200/50 blur-3xl" />
 
-      <div className="max-w-md w-full relative z-10">
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-500 hover:scale-[1.02]">
-          {/* Top Gradient Bar */}
-          <div className="h-2 bg-gradient-to-r from-purple-600 to-blue-600"></div>
-          
-          <div className="p-8 sm:p-10">
-            {/* Logo & Header */}
-            <div className="text-center mb-8">
-              <div className="w-20 h-20 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg transform hover:scale-110 transition-transform duration-300">
-                <FaStore className="text-white text-3xl" />
-              </div>
-              <h2 className="text-3xl font-bold text-gray-800">Welcome Back</h2>
-              <p className="text-gray-500 mt-2">Sign in to your admin account</p>
-            </div>
-            
-            {/* Error Alert */}
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg animate-shake">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                    <FaShieldAlt className="text-red-500 text-sm" />
-                  </div>
-                  <p className="text-red-700 text-sm font-medium">{error}</p>
-                </div>
-              </div>
-            )}
-            
-            {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Email Field */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email Address
-                </label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FaUser className="text-gray-400 group-focus-within:text-purple-500 transition-colors duration-200" />
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                    placeholder="admin@shopease.com"
-                  />
-                </div>
-              </div>
-              
-              {/* Password Field with Show/Hide */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Password
-                </label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <FaLock className="text-gray-400 group-focus-within:text-purple-500 transition-colors duration-200" />
-                  </div>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-purple-600 transition-colors duration-200"
-                  >
-                    {showPassword ? <FaEyeSlash className="w-5 h-5" /> : <FaEye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-              
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-600">Remember me</span>
-                </label>
-                <a href="#" className="text-sm text-purple-600 hover:text-purple-700 font-medium">
-                  Forgot password?
-                </a>
-              </div>
-              
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+      <div className="relative mx-auto grid min-h-[calc(100vh-72px)] max-w-7xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_0.82fr] lg:px-8 lg:py-14">
+        <motion.section
+          initial={{ opacity: 0, x: -18 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.55 }}
+          className="hidden lg:block"
+        >
+          <div className="inline-flex items-center gap-2 rounded-full border border-violet-100 bg-white/80 px-3.5 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-700 shadow-sm backdrop-blur">
+            <FaShieldAlt className="text-[10px]" />
+            ShopEase administration
+          </div>
+
+          <h1 className="mt-7 max-w-xl text-5xl font-semibold tracking-[-0.055em] text-slate-950 xl:text-6xl">
+            Manage the store
+            <span className="block text-slate-400">with confidence.</span>
+          </h1>
+
+          <p className="mt-6 max-w-xl text-base leading-8 text-slate-500">
+            Products, variants, inventory, and customer orders come together in
+            one focused commerce workspace.
+          </p>
+
+          <div className="mt-9 grid max-w-xl gap-3 sm:grid-cols-3">
+            {[
+              "Variant-aware catalog",
+              "Live inventory",
+              "Order management",
+            ].map((feature) => (
+              <div
+                key={feature}
+                className="rounded-2xl border border-slate-200 bg-white/75 p-4 backdrop-blur"
               >
-                {loading ? (
-                  <>
-                    <FaSpinner className="animate-spin" />
-                    Logging in...
-                  </>
-                ) : (
-                  <>
-                    Sign In
-                    <FaArrowRight className="group-hover:translate-x-1 transition-transform duration-200" />
-                  </>
-                )}
-              </button>
-            </form>
-            
-            {/* Demo Credentials */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-xs text-gray-500 text-center mb-2">Demo Credentials</p>
-                <div className="flex justify-center gap-4 text-xs">
-                  <div>
-                    <span className="font-semibold text-gray-700">Email:</span>
-                    <span className="text-gray-500 ml-1">admin@shopease.com</span>
-                  </div>
-                  <div>
-                    <span className="font-semibold text-gray-700">Password:</span>
-                    <span className="text-gray-500 ml-1">Admin123!</span>
-                  </div>
+                <FaCheckCircle className="text-sm text-emerald-500" />
+                <p className="mt-3 text-xs font-semibold leading-5 text-slate-700">
+                  {feature}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <Link
+            to="/"
+            className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-950"
+          >
+            <FaArrowLeft className="text-[10px]" />
+            Return to storefront
+          </Link>
+        </motion.section>
+
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.05 }}
+          className="mx-auto w-full max-w-md"
+        >
+          <div className="overflow-hidden rounded-[34px] border border-slate-200 bg-white shadow-[0_32px_100px_rgba(15,23,42,0.12)]">
+            <div className="h-1.5 bg-gradient-to-r from-violet-500 via-purple-500 to-blue-600" />
+
+            <div className="p-6 sm:p-8">
+              <div className="flex items-start justify-between gap-5">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-600">
+                    Secure access
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-slate-950">
+                    Admin sign in
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Use your ShopEase administrator credentials.
+                  </p>
+                </div>
+
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white">
+                  <FaStore />
                 </div>
               </div>
+
+              {error && (
+                <div className="mt-6 flex gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm leading-5 text-red-700">
+                  <FaShieldAlt className="mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Email address
+                  </label>
+                  <div className="relative">
+                    <FaUser className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xs text-slate-400" />
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      autoComplete="username"
+                      placeholder="admin@example.com"
+                      className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-slate-950 focus:ring-4 focus:ring-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Password
+                  </label>
+
+                  <div className="relative">
+                    <FaLock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xs text-slate-400" />
+
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      autoComplete="current-password"
+                      placeholder="Enter your password"
+                      className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-12 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-slate-950 focus:ring-4 focus:ring-slate-100"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-wait disabled:translate-y-0 disabled:bg-slate-300"
+                >
+                  {loading ? (
+                    <>
+                      <FaSpinner className="animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      <FaLock className="text-xs" />
+                      Sign in to dashboard
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-6 rounded-2xl bg-slate-50 p-4">
+                <div className="flex gap-3">
+                  <FaShieldAlt className="mt-0.5 shrink-0 text-xs text-slate-400" />
+                  <p className="text-[11px] leading-5 text-slate-400">
+                    This area is restricted to authorized ShopEase
+                    administrators. Sessions are stored by the existing
+                    ShopEase authentication state.
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                to="/"
+                className="mt-5 flex items-center justify-center gap-2 text-xs font-semibold text-slate-400 transition hover:text-slate-800 lg:hidden"
+              >
+                <FaArrowLeft className="text-[9px]" />
+                Back to storefront
+              </Link>
             </div>
           </div>
-        </div>
-        
-        {/* Footer Note */}
-        <p className="text-center text-white/80 text-sm mt-6">
-          Secure admin access only. Unauthorized access is prohibited.
-        </p>
+        </motion.section>
       </div>
-
-      <style jsx>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
-          20%, 40%, 60%, 80% { transform: translateX(2px); }
-        }
-        .animate-shake {
-          animation: shake 0.5s ease-in-out;
-        }
-        .delay-1000 {
-          animation-delay: 1s;
-        }
-      `}</style>
-    </div>
+    </main>
   );
 };
 
