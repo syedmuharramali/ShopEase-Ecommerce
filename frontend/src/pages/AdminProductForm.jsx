@@ -2240,4 +2240,4 @@ const AdminProductForm = () => {
   );
 };
 
-export default AdminProductForm;
+export default AdminProductForm;,

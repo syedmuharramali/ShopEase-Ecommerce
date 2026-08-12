@@ -309,19 +309,21 @@ const OrderPage = () => {
       setSubmitting(true);
       setErrors({});
 
-      const phoneNumber = formData.phone.replace(/\D/g, "");
-      const payload = {
-        variantId,
-        name: formData.name.trim(),
-        email: formData.email.trim().toLowerCase(),
-        phoneNumber,
-        province: formData.province,
-        city: formData.city.trim(),
-        address: formData.address.trim(),
-        postalCode: formData.postalCode.trim(),
-        paymentMethod: formData.paymentMethod,
-        quantity: Number(formData.quantity),
-      };
+     const phoneNumber =
+  formData.phone.replace(/\D/g, "");
+
+const payload = {
+  variantId,
+  name: formData.name.trim(),
+  email: formData.email.trim().toLowerCase(),
+  phoneNumber,
+  province: formData.province,
+  city: formData.city.trim(),
+  address: formData.address.trim(),
+  postalCode: formData.postalCode.trim(),
+  paymentMethod: formData.paymentMethod,
+  quantity: Number(formData.quantity),
+};
 
       const response = await axios.post(
         `${API_BASE_URL}/orders/create/${productId}`,

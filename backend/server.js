@@ -37,6 +37,7 @@ const productVariantRoutes = require(
   "./routes/productVariant.route"
 );
 const orderRoutes = require("./routes/order.route.js");
+const emailRoutes = require("./routes/email.route.js");
 
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
@@ -49,6 +50,7 @@ app.use(
   productVariantRoutes
 );
 app.use("/api/orders", orderRoutes);
+app.use("/api/email", emailRoutes);
 /*
  * ----------------------------------------
  * Health Check

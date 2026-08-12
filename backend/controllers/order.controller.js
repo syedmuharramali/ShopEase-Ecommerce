@@ -11,25 +11,21 @@ const sendEmail = require("../utils/sendEmail.js");
 
 exports.createOrder = async (req, res) => {
   try {
-    const {
-      name,
-      email,
-      phoneNumber:rawPhoneNumber,
-      province,
-      city,
-      address,
-      postalCode,
-      paymentMethod,
-      quantity,
-      variantId,
-    } = req.body;
+    const phoneNumber =
+  formData.phone.replace(/\D/g, "");
 
-    const phoneNumber = formData.phone.replace(/\D/g, "");
-    
-    if (!/^\d{10,15}$/.test(phoneNumber)) {
-  return res.status(400).json({
-    message: "Please enter a valid phone number",
-  });
+const payload = {
+  variantId,
+  name: formData.name.trim(),
+  email: formData.email.trim().toLowerCase(),
+  phoneNumber,
+  province: formData.province,
+  city: formData.city.trim(),
+  address: formData.address.trim(),
+  postalCode: formData.postalCode.trim(),
+  paymentMethod: formData.paymentMethod,
+  quantity: Number(formData.quantity),
+};
 }
     const { productId } = req.params;
 

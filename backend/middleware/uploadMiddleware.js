@@ -24,7 +24,9 @@ const storage = multer.diskStorage({
       .toLowerCase();
 
     const uniqueName =
-      `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${extension}`;
+      `${Date.now()}-${crypto
+        .randomBytes(6)
+        .toString("hex")}${extension}`;
 
     cb(null, uniqueName);
   },

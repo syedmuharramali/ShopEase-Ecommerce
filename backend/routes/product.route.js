@@ -14,19 +14,29 @@ const {
   admin,
 } = require("../middleware/authMiddleware");
 
+const upload = require(
+  "../middleware/upload.middleware"
+);
+
 const router = express.Router();
 
 router.get("/", getProducts);
 
-router.get("/slug/:slug", getProductBySlug);
+router.get(
+  "/slug/:slug",
+  getProductBySlug
+);
 
-router.get("/:id", getProductById);
+router.get(
+  "/:id",
+  getProductById
+);
 
 router.post(
   "/",
   protect,
   admin,
-   upload.array("images", 8),
+  upload.array("images", 8),
   createProduct
 );
 
@@ -34,7 +44,7 @@ router.patch(
   "/:id",
   protect,
   admin,
-   upload.array("images", 8),
+  upload.array("images", 8),
   updateProduct
 );
 

@@ -25,6 +25,17 @@ function slugify(value) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
+function parseBoolean(value, fallback = false) {
+  if (value === true || value === "true") {
+    return true;
+  }
+
+  if (value === false || value === "false") {
+    return false;
+  }
+
+  return fallback;
+}
 
 /*
  * GET /api/products
@@ -332,7 +343,6 @@ const createProduct = async (req, res) => {
       shortDescription = "",
       brand = "",
       category,
-      images = [],
       tags = [],
       attributes = {},
       status = "draft",
@@ -395,6 +405,10 @@ const createProduct = async (req, res) => {
      * Create product
      * ----------------------------------------
      */
+    const uploadedImages = filesToProductImages(
+  req.files,
+  name.trim()
+);
 
     const product =
       await Product.create({
@@ -404,11 +418,11 @@ const createProduct = async (req, res) => {
         shortDescription,
         brand,
         category: categoryDoc._id,
-        images,
+        images:uploadedImages,
         tags,
         attributes,
         status,
-        featured,
+        featured:parseBoolean(featured,false),
         createdBy: req.user._id,
       });
 
@@ -442,13 +456,23 @@ const createProduct = async (req, res) => {
  */
 const updateProduct = async (req, res) => {
   try {
+    // Find the existing product first
+    const currentProduct =
+      await Product.findById(req.params.id);
+
+    if (!currentProduct) {
+      return res.status(404).json({
+        message: "Product not found",
+      });
+    }
+
+    // Fields admin is allowed to update
     const allowedFields = [
       "name",
       "description",
       "shortDescription",
       "brand",
       "category",
-      "images",
       "tags",
       "attributes",
       "status",
@@ -458,20 +482,20 @@ const updateProduct = async (req, res) => {
     const updates = {};
 
     for (const field of allowedFields) {
-      if (
-        req.body[field] !== undefined
-      ) {
-        updates[field] =
-          req.body[field];
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
       }
     }
 
-    /*
-     * Don't allow price or stock here.
-     *
-     * Those belong to ProductVariant.
-     */
+    // FormData sends booleans as strings
+    if (updates.featured !== undefined) {
+      updates.featured = parseBoolean(
+        updates.featured,
+        currentProduct.featured
+      );
+    }
 
+    // Validate category if changed
     if (updates.category) {
       const category =
         await Category.findById(
@@ -485,24 +509,12 @@ const updateProduct = async (req, res) => {
       }
     }
 
+    // Update slug if product name changes
     if (updates.name) {
-      updates.name =
-        updates.name.trim();
-
-      const currentProduct =
-        await Product.findById(
-          req.params.id
-        ).select("name");
-
-      if (!currentProduct) {
-        return res.status(404).json({
-          message: "Product not found",
-        });
-      }
+      updates.name = updates.name.trim();
 
       if (
-        updates.name !==
-        currentProduct.name
+        updates.name !== currentProduct.name
       ) {
         const baseSlug =
           slugify(updates.name);
@@ -526,6 +538,35 @@ const updateProduct = async (req, res) => {
       }
     }
 
+    // If new images were uploaded,
+    // keep old images and add the new ones
+    if (req.files?.length) {
+      const existingImages =
+        (currentProduct.images || []).map(
+          (image, index) => ({
+            url: image.url,
+            alt:
+              image.alt ||
+              currentProduct.name,
+            position:
+              image.position ?? index,
+          })
+        );
+
+      const uploadedImages =
+        filesToProductImages(
+          req.files,
+          updates.name ||
+            currentProduct.name,
+          existingImages.length
+        );
+
+      updates.images = [
+        ...existingImages,
+        ...uploadedImages,
+      ];
+    }
+
     const product =
       await Product.findByIdAndUpdate(
         req.params.id,
@@ -543,14 +584,9 @@ const updateProduct = async (req, res) => {
         )
         .lean();
 
-    if (!product) {
-      return res.status(404).json({
-        message: "Product not found",
-      });
-    }
-
     return res.status(200).json({
-      message: "Product updated successfully",
+      message:
+        "Product updated successfully",
       product,
     });
   } catch (error) {
@@ -560,7 +596,8 @@ const updateProduct = async (req, res) => {
     );
 
     return res.status(500).json({
-      message: "Failed to update product",
+      message:
+        "Failed to update product",
       error: error.message,
     });
   }
