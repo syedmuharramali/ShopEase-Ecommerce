@@ -159,12 +159,12 @@ const productVariantSchema = new mongoose.Schema(
 productVariantSchema.pre("validate", function (next) {
   if (!Array.isArray(this.selectedOptions)) {
     this.combinationKey = "DEFAULT";
-    return next();
+    return ;
   }
 
   if (this.selectedOptions.length === 0) {
     this.combinationKey = "DEFAULT";
-    return next();
+    return;
   }
 
   const normalizedOptions = this.selectedOptions
@@ -183,7 +183,7 @@ productVariantSchema.pre("validate", function (next) {
     )
     .join("|");
 
-  next();
+  ;
 });
 
 /*

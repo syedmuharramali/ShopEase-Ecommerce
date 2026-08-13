@@ -11,23 +11,24 @@ const sendEmail = require("../utils/sendEmail.js");
 
 exports.createOrder = async (req, res) => {
   try {
-    const phoneNumber =
-  formData.phone.replace(/\D/g, "");
-
+    console.log(req.body);
+    const {variantId,name,email,phoneNumber,province,address,city,postalCode,paymentMethod,quantity}=req.body;
+ 
 const payload = {
-  variantId,
-  name: formData.name.trim(),
-  email: formData.email.trim().toLowerCase(),
+  variantId:req.body.variantId,
+  name: req.body.name.trim(),
+  email: req.body.email.trim().toLowerCase(),
   phoneNumber,
-  province: formData.province,
-  city: formData.city.trim(),
-  address: formData.address.trim(),
-  postalCode: formData.postalCode.trim(),
-  paymentMethod: formData.paymentMethod,
-  quantity: Number(formData.quantity),
+  province: req.body.province,
+  city: req.body.city.trim(),
+  address: req.body.address.trim(),
+  postalCode: req.body.postalCode.trim(),
+  paymentMethod: req.body.paymentMethod,
+  quantity: Number(req.body.quantity),
 };
-}
+
     const { productId } = req.params;
+    console.log(productId)
 
     // --------------------------------------------------------
     // Validate IDs
@@ -42,7 +43,7 @@ const payload = {
     }
 
     if (
-      !mongoose.Types.ObjectId.isValid(variantId)
+      !mongoose.Types.ObjectId.isValid(req.body.variantId)
     ) {
       return res.status(400).json({
         message: "Valid variantId is required",
@@ -54,8 +55,8 @@ const payload = {
     // --------------------------------------------------------
 
     if (
-      !Number.isInteger(quantity) ||
-      quantity < 1
+      !Number.isInteger(req.body.quantity) ||
+      req.body.quantity < 1
     ) {
       return res.status(400).json({
         message:
@@ -83,7 +84,7 @@ const payload = {
 
     const variant =
       await ProductVariant.findOne({
-        _id: variantId,
+        _id: req.body.variantId,
         product: productId,
         isActive: true,
       }).lean();
@@ -99,7 +100,7 @@ const payload = {
     // Check stock
     // --------------------------------------------------------
 
-    if (variant.stock < quantity) {
+    if (variant.stock < req.body.quantity) {
       return res.status(400).json({
         message:
           `Only ${variant.stock} item(s) are available`,
@@ -111,7 +112,7 @@ const payload = {
     // --------------------------------------------------------
 
     const subtotal =
-      variant.price * quantity;
+      variant.price * req.body.quantity;
 
     // --------------------------------------------------------
     // Create order
@@ -131,7 +132,7 @@ const payload = {
 
       product: productId,
 
-      variant: variantId,
+      variant: req.body.variantId,
 
       variantSnapshot: {
         sku: variant.sku,

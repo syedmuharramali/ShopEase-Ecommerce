@@ -172,7 +172,7 @@ orderSchema.pre("save", function (next) {
       `ORD-${year}${month}${day}-${random}`;
   }
 
-  next();
+  
 });
 
 const Order = mongoose.model(

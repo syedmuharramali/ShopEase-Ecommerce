@@ -38,9 +38,12 @@ const productVariantRoutes = require(
 );
 const orderRoutes = require("./routes/order.route.js");
 const emailRoutes = require("./routes/email.route.js");
-
+const categoryRoutes = require(
+  "./routes/category.route"
+);
 app.use("/api/users", userRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/categories", categoryRoutes);
 app.use(
   "/api/products",
   productOptionRoutes
