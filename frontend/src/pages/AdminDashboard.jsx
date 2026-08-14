@@ -1,9 +1,11 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Link,
   useNavigate,
 } from "react-router";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { logout } from "../slices/authSlice.js";
 import axios from "axios";
 import { motion } from "framer-motion";
 import {
@@ -101,35 +103,68 @@ const normalizeOrders = (payload) => {
   return [];
 };
 
-const normalizeVariants = (payload) => {
+const normalizeCategories = (payload) => {
   if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.variants)) return payload.variants;
+  if (Array.isArray(payload?.categories)) return payload.categories;
   return [];
 };
 
-const buildVariantSummary = (variants) => {
-  const activeVariants = variants.filter(
-    (variant) => variant?.isActive !== false
-  );
+const getOrderItems = (order) => {
+  if (Array.isArray(order?.items) && order.items.length > 0) return order.items;
 
-  const prices = activeVariants
-    .map((variant) => Number(variant?.price))
-    .filter((price) => Number.isFinite(price));
+  if (order?.product || order?.variantSnapshot) {
+    return [
+      {
+        product: order.product,
+        variant: order.variant,
+        productSnapshot: { name: order.product?.name || "Product" },
+        variantSnapshot: order.variantSnapshot,
+        quantity: order.quantity || 1,
+      },
+    ];
+  }
 
-  const totalStock = activeVariants.reduce(
-    (sum, variant) => sum + Number(variant?.stock || 0),
+  return [];
+};
+
+const getOrderUnitCount = (order) =>
+  getOrderItems(order).reduce(
+    (sum, item) => sum + Math.max(1, Number(item?.quantity) || 1),
     0
   );
 
-  return {
-    variants: activeVariants,
-    variantCount: activeVariants.length,
-    minPrice: prices.length ? Math.min(...prices) : null,
-    maxPrice: prices.length ? Math.max(...prices) : null,
-    totalStock,
-    inStock: totalStock > 0,
-  };
+const getOrderSubtotal = (order) => Number(order?.subtotal || 0);
+
+const getOrderDeliveryCharge = (order) =>
+  Number(order?.deliveryCharge || 0);
+
+const getOrderTotal = (order) => {
+  const savedTotal = Number(order?.total);
+
+  // New orders save total explicitly. For older orders that do not have
+  // delivery fields yet, fall back safely to their historical subtotal.
+  if (Number.isFinite(savedTotal) && savedTotal > 0) {
+    return savedTotal;
+  }
+
+  return getOrderSubtotal(order) + getOrderDeliveryCharge(order);
 };
+
+const buildVariantSummary = (storefront = {}) => ({
+  variantCount: Number(storefront?.variantCount || 0),
+  minPrice:
+    storefront?.minPrice === null ||
+    storefront?.minPrice === undefined
+      ? null
+      : Number(storefront.minPrice),
+  maxPrice:
+    storefront?.maxPrice === null ||
+    storefront?.maxPrice === undefined
+      ? null
+      : Number(storefront.maxPrice),
+  totalStock: Number(storefront?.totalStock || 0),
+  inStock: Boolean(storefront?.inStock),
+});
 
 const StatusBadge = ({ status }) => {
   const config = {
@@ -222,12 +257,15 @@ const EmptyState = ({ icon: Icon, title, description, action }) => (
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { adminInfo } = useSelector((state) => state.auth);
 
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [orders, setOrders] = useState([]);
 
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
 
   const [activeTab, setActiveTab] = useState("products");
@@ -235,6 +273,12 @@ const AdminDashboard = () => {
 
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [archiving, setArchiving] = useState(false);
+
+  const [categoryModal, setCategoryModal] = useState(null);
+  const [categorySaving, setCategorySaving] = useState(false);
+  const [categoryArchiveTarget, setCategoryArchiveTarget] = useState(null);
+  const [categoryArchiving, setCategoryArchiving] = useState(false);
+
   const [updatingOrderId, setUpdatingOrderId] = useState("");
 
   const [notice, setNotice] = useState(null);
@@ -257,6 +301,7 @@ const AdminDashboard = () => {
     if (!adminInfo?.token) return;
 
     fetchProducts();
+    fetchCategories();
     fetchOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminInfo?.token]);
@@ -274,52 +319,93 @@ const AdminDashboard = () => {
       setLoadingProducts(true);
       setLoadError("");
 
-      const response = await axios.get(`${API_BASE_URL}/products`, {
-        params: {
-          limit: 100,
-        },
-      });
+      /*
+       * Admin needs the complete catalog, not only active storefront items.
+       * Fetch each status once, then use the storefront summary already
+       * returned by GET /products. This removes the old per-product
+       * /variants requests.
+       */
+      const statuses = ["active", "draft", "archived"];
 
-      const productList = normalizeProducts(response.data);
-
-      const enrichedProducts = await Promise.all(
-        productList.map(async (product) => {
-          try {
-            const variantResponse = await axios.get(
-              `${API_BASE_URL}/products/${product._id}/variants`
-            );
-
-            return {
-              ...product,
-              variantSummary: buildVariantSummary(
-                normalizeVariants(variantResponse.data)
-              ),
-            };
-          } catch (error) {
-            console.warn(
-              `Could not load variants for product ${product._id}:`,
-              error
-            );
-
-            return {
-              ...product,
-              variantSummary: buildVariantSummary([]),
-            };
-          }
-        })
+      const responses = await Promise.all(
+        statuses.map((status) =>
+          axios.get(`${API_BASE_URL}/products/admin/catalog`, {
+            params: {
+              limit: 100,
+              status,
+              sort: "newest",
+            },
+            headers: authHeaders,
+          })
+        )
       );
 
-      setProducts(enrichedProducts);
+      const productMap = new Map();
+
+      responses.forEach((response) => {
+        normalizeProducts(response.data).forEach((product) => {
+          productMap.set(product._id, {
+            ...product,
+            variantSummary: buildVariantSummary(
+              product.storefront || {}
+            ),
+          });
+        });
+      });
+
+      const completeCatalog = [...productMap.values()].sort(
+        (a, b) =>
+          new Date(b.createdAt || 0) -
+          new Date(a.createdAt || 0)
+      );
+
+      setProducts(completeCatalog);
     } catch (error) {
       console.error("Admin products loading error:", error);
+
+      if (error.response?.status === 401) {
+        dispatch(logout());
+
+        navigate("/admin/login", {
+          replace: true,
+        });
+
+        return;
+      }
 
       setLoadError(
         error.response?.data?.message ||
           "We couldn't load the product catalog."
       );
+
       setProducts([]);
     } finally {
       setLoadingProducts(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+
+      const response = await axios.get(`${API_BASE_URL}/categories`);
+
+      setCategories(
+        normalizeCategories(response.data).sort((a, b) =>
+          String(a.name || "").localeCompare(String(b.name || ""))
+        )
+      );
+    } catch (error) {
+      console.error("Admin categories loading error:", error);
+      setCategories([]);
+
+      showNotice(
+        "error",
+        error.response?.data?.message ||
+          "We couldn't load the categories."
+      );
+    } finally {
+      setLoadingCategories(false);
     }
   };
 
@@ -336,6 +422,7 @@ const AdminDashboard = () => {
       console.error("Admin orders loading error:", error);
 
       if (error.response?.status === 401) {
+        dispatch(logout());
         navigate("/admin/login", { replace: true });
         return;
       }
@@ -347,28 +434,10 @@ const AdminDashboard = () => {
   };
 
   const stats = useMemo(() => {
-    const categoryKeys = new Set(
-      products
-        .map((product) => {
-          if (!product.category) return null;
-
-          if (typeof product.category === "string") {
-            return product.category;
-          }
-
-          return (
-            product.category._id ||
-            product.category.slug ||
-            product.category.name
-          );
-        })
-        .filter(Boolean)
-    );
-
     const orderValue = orders
       .filter((order) => order.status !== "cancelled")
       .reduce(
-        (sum, order) => sum + Number(order.subtotal || 0),
+        (sum, order) => sum + getOrderTotal(order),
         0
       );
 
@@ -381,12 +450,12 @@ const AdminDashboard = () => {
       activeProducts: products.filter(
         (product) => product.status === "active"
       ).length,
-      categories: categoryKeys.size,
+      categories: categories.length,
       totalOrders: orders.length,
       pendingOrders,
       orderValue,
     };
-  }, [products, orders]);
+  }, [products, categories.length, orders]);
 
   const filteredProducts = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -407,6 +476,46 @@ const AdminDashboard = () => {
     );
   }, [products, searchTerm]);
 
+  const categoryUsageCounts = useMemo(() => {
+    const counts = new Map();
+
+    products.forEach((product) => {
+      if (product.status === "archived") return;
+
+      const categoryId =
+        typeof product.category === "object"
+          ? product.category?._id
+          : null;
+
+      if (!categoryId) return;
+
+      counts.set(
+        categoryId,
+        (counts.get(categoryId) || 0) + 1
+      );
+    });
+
+    return counts;
+  }, [products]);
+
+  const filteredCategories = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+
+    if (!query) return categories;
+
+    return categories.filter((category) =>
+      [
+        category.name,
+        category.slug,
+        category.description,
+      ]
+        .filter(Boolean)
+        .some((value) =>
+          value.toString().toLowerCase().includes(query)
+        )
+    );
+  }, [categories, searchTerm]);
+
   const filteredOrders = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
 
@@ -417,10 +526,18 @@ const AdminDashboard = () => {
         order.orderNumber,
         order.name,
         order.email,
-        order.phone,
+        order.phoneNumber,
         order.product?.name,
         order.variant?.sku,
         order.variantSnapshot?.sku,
+        ...getOrderItems(order).flatMap((item) => [
+          item.product?.name,
+          item.productSnapshot?.name,
+          item.variant?.sku,
+          item.variantSnapshot?.sku,
+        ]),
+        order.province,
+        order.city,
         order.status,
       ]
         .filter(Boolean)
@@ -467,6 +584,164 @@ const AdminDashboard = () => {
       );
     } finally {
       setArchiving(false);
+    }
+  };
+
+  const openCreateCategory = () => {
+    setCategoryModal({
+      mode: "create",
+      _id: "",
+      name: "",
+      description: "",
+    });
+  };
+
+  const openEditCategory = (category) => {
+    setCategoryModal({
+      mode: "edit",
+      _id: category._id,
+      name: category.name || "",
+      description: category.description || "",
+    });
+  };
+
+  const saveCategory = async () => {
+    if (!categoryModal || categorySaving) return;
+
+    const name = categoryModal.name.trim();
+    const description = categoryModal.description.trim();
+
+    if (!name) {
+      showNotice("error", "Category name is required.");
+      return;
+    }
+
+    try {
+      setCategorySaving(true);
+
+      const response =
+        categoryModal.mode === "edit"
+          ? await axios.patch(
+              `${API_BASE_URL}/categories/${categoryModal._id}`,
+              {
+                name,
+                description,
+              },
+              {
+                headers: authHeaders,
+              }
+            )
+          : await axios.post(
+              `${API_BASE_URL}/categories`,
+              {
+                name,
+                description,
+              },
+              {
+                headers: authHeaders,
+              }
+            );
+
+      const savedCategory = response.data?.category;
+
+      if (!savedCategory?._id) {
+        throw new Error("Category was saved but no category was returned.");
+      }
+
+      setCategories((current) => {
+        const exists = current.some(
+          (category) => category._id === savedCategory._id
+        );
+
+        const next = exists
+          ? current.map((category) =>
+              category._id === savedCategory._id
+                ? savedCategory
+                : category
+            )
+          : [...current, savedCategory];
+
+        return next.sort((a, b) =>
+          String(a.name || "").localeCompare(String(b.name || ""))
+        );
+      });
+
+      showNotice(
+        "success",
+        categoryModal.mode === "edit"
+          ? "Category updated."
+          : response.status === 200
+            ? "Category restored."
+            : "Category created."
+      );
+
+      setCategoryModal(null);
+    } catch (error) {
+      console.error("Save category error:", error);
+
+      if (error.response?.status === 401) {
+        dispatch(logout());
+        navigate("/admin/login", {
+          replace: true,
+        });
+        return;
+      }
+
+      showNotice(
+        "error",
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to save this category."
+      );
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const archiveCategory = async () => {
+    if (!categoryArchiveTarget?._id || categoryArchiving) return;
+
+    try {
+      setCategoryArchiving(true);
+
+      await axios.delete(
+        `${API_BASE_URL}/categories/${categoryArchiveTarget._id}`,
+        {
+          headers: authHeaders,
+        }
+      );
+
+      setCategories((current) =>
+        current.filter(
+          (category) =>
+            category._id !== categoryArchiveTarget._id
+        )
+      );
+
+      showNotice(
+        "success",
+        `${categoryArchiveTarget.name} has been archived.`
+      );
+
+      setCategoryArchiveTarget(null);
+    } catch (error) {
+      console.error("Archive category error:", error);
+
+      if (error.response?.status === 401) {
+        dispatch(logout());
+        navigate("/admin/login", {
+          replace: true,
+        });
+        return;
+      }
+
+      showNotice(
+        "error",
+        error.response?.data?.message ||
+          "Failed to archive this category."
+      );
+    } finally {
+      setCategoryArchiving(false);
     }
   };
 
@@ -524,7 +799,9 @@ const AdminDashboard = () => {
   const isLoading =
     activeTab === "products"
       ? loadingProducts
-      : loadingOrders;
+      : activeTab === "categories"
+        ? loadingCategories
+        : loadingOrders;
 
   return (
     <main className="min-h-screen bg-[#f5f6f8]">
@@ -705,6 +982,29 @@ const AdminDashboard = () => {
               <button
                 type="button"
                 onClick={() => {
+                  setActiveTab("categories");
+                  setSearchTerm("");
+                }}
+                className={`relative flex items-center gap-2 px-4 py-4 text-sm font-semibold transition ${
+                  activeTab === "categories"
+                    ? "text-slate-950"
+                    : "text-slate-400 hover:text-slate-700"
+                }`}
+              >
+                <FaTag className="text-xs" />
+                Categories
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+                  {stats.categories}
+                </span>
+
+                {activeTab === "categories" && (
+                  <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-slate-950" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
                   setActiveTab("orders");
                   setSearchTerm("");
                 }}
@@ -740,21 +1040,42 @@ const AdminDashboard = () => {
                   placeholder={
                     activeTab === "products"
                       ? "Search products..."
-                      : "Search orders..."
+                      : activeTab === "categories"
+                        ? "Search categories..."
+                        : "Search orders..."
                   }
                   className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:bg-white focus:border-slate-300 focus:bg-white focus:ring-4 focus:ring-slate-100"
                 />
               </div>
 
-              <p className="text-xs text-slate-400">
-                {activeTab === "products"
-                  ? `${filteredProducts.length} catalog ${
-                      filteredProducts.length === 1 ? "item" : "items"
-                    }`
-                  : `${filteredOrders.length} ${
-                      filteredOrders.length === 1 ? "order" : "orders"
-                    }`}
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-slate-400">
+                  {activeTab === "products"
+                    ? `${filteredProducts.length} catalog ${
+                        filteredProducts.length === 1 ? "item" : "items"
+                      }`
+                    : activeTab === "categories"
+                      ? `${filteredCategories.length} ${
+                          filteredCategories.length === 1
+                            ? "category"
+                            : "categories"
+                        }`
+                      : `${filteredOrders.length} ${
+                          filteredOrders.length === 1 ? "order" : "orders"
+                        }`}
+                </p>
+
+                {activeTab === "categories" && (
+                  <button
+                    type="button"
+                    onClick={openCreateCategory}
+                    className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-950 px-4 text-xs font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    <FaPlus className="text-[10px]" />
+                    Add category
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -829,7 +1150,7 @@ const AdminDashboard = () => {
                       {filteredProducts.map((product) => {
                         const summary =
                           product.variantSummary ||
-                          buildVariantSummary([]);
+                          buildVariantSummary({});
 
                         const image = product.images?.[0];
 
@@ -950,7 +1271,7 @@ const AdminDashboard = () => {
                   {filteredProducts.map((product) => {
                     const summary =
                       product.variantSummary ||
-                      buildVariantSummary([]);
+                      buildVariantSummary({});
 
                     return (
                       <div key={product._id} className="p-4 sm:p-5">
@@ -1023,6 +1344,201 @@ const AdminDashboard = () => {
                 </div>
               </>
             )
+          ) : activeTab === "categories" ? (
+            filteredCategories.length === 0 ? (
+              <EmptyState
+                icon={FaTag}
+                title="No categories found"
+                description={
+                  searchTerm
+                    ? "Try another search term."
+                    : "Create a category before adding products to it."
+                }
+                action={
+                  !searchTerm ? (
+                    <button
+                      type="button"
+                      onClick={openCreateCategory}
+                      className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white"
+                    >
+                      <FaPlus className="text-xs" />
+                      Add category
+                    </button>
+                  ) : null
+                }
+              />
+            ) : (
+              <>
+                <div className="hidden overflow-x-auto lg:block">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/60 text-left">
+                        <th className="px-6 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Category
+                        </th>
+                        <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Description
+                        </th>
+                        <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Products
+                        </th>
+                        <th className="px-5 py-3.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Slug
+                        </th>
+                        <th className="px-6 py-3.5 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredCategories.map((category) => {
+                        const usageCount =
+                          categoryUsageCounts.get(category._id) || 0;
+
+                        return (
+                          <tr
+                            key={category._id}
+                            className="transition hover:bg-slate-50/70"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                                  <FaTag className="text-xs" />
+                                </div>
+
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-950">
+                                    {category.name}
+                                  </p>
+                                  <p className="mt-1 text-[10px] text-emerald-600">
+                                    Active
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="max-w-[360px] px-5 py-4 text-sm text-slate-500">
+                              <p className="line-clamp-2">
+                                {category.description ||
+                                  "No description"}
+                              </p>
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                                {usageCount}
+                              </span>
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <span className="font-mono text-xs text-slate-400">
+                                {category.slug || "—"}
+                              </span>
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openEditCategory(category)
+                                  }
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-950"
+                                  title="Edit category"
+                                >
+                                  <FaEdit className="text-xs" />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setCategoryArchiveTarget(category)
+                                  }
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-red-100 text-red-500 transition hover:bg-red-50"
+                                  title={
+                                    usageCount > 0
+                                      ? "Archive is blocked until products are moved or archived"
+                                      : "Archive category"
+                                  }
+                                >
+                                  <FaArchive className="text-xs" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="divide-y divide-slate-100 lg:hidden">
+                  {filteredCategories.map((category) => {
+                    const usageCount =
+                      categoryUsageCounts.get(category._id) || 0;
+
+                    return (
+                      <div key={category._id} className="p-4 sm:p-5">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                            <FaTag className="text-xs" />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-slate-950">
+                              {category.name}
+                            </p>
+
+                            <p className="mt-1 font-mono text-[10px] text-slate-400">
+                              {category.slug || "No slug"}
+                            </p>
+
+                            <p className="mt-3 text-xs leading-5 text-slate-500">
+                              {category.description ||
+                                "No description"}
+                            </p>
+
+                            <p className="mt-3 text-xs text-slate-400">
+                              <strong className="text-slate-700">
+                                {usageCount}
+                              </strong>{" "}
+                              {usageCount === 1
+                                ? "product"
+                                : "products"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openEditCategory(category)
+                            }
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700"
+                          >
+                            <FaEdit />
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCategoryArchiveTarget(category)
+                            }
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-100 px-4 py-2.5 text-xs font-semibold text-red-600"
+                          >
+                            <FaArchive />
+                            Archive
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )
           ) : filteredOrders.length === 0 ? (
             <EmptyState
               icon={FaShoppingBag}
@@ -1062,14 +1578,21 @@ const AdminDashboard = () => {
 
                   <tbody className="divide-y divide-slate-100">
                     {filteredOrders.map((order) => {
+                      const displayItems = getOrderItems(order);
+                      const firstItem = displayItems[0];
                       const productName =
+                        firstItem?.product?.name ||
+                        firstItem?.productSnapshot?.name ||
                         order.product?.name ||
                         "Product unavailable";
 
                       const sku =
+                        firstItem?.variant?.sku ||
+                        firstItem?.variantSnapshot?.sku ||
                         order.variant?.sku ||
                         order.variantSnapshot?.sku ||
                         "";
+                      const extraItemCount = Math.max(0, displayItems.length - 1);
 
                       return (
                         <tr
@@ -1084,7 +1607,7 @@ const AdminDashboard = () => {
                                   ?.toUpperCase()}`}
                             </p>
                             <p className="mt-1 text-[10px] text-slate-400">
-                              Qty {order.quantity || 1}
+                              {getOrderUnitCount(order)} total unit{getOrderUnitCount(order) === 1 ? "" : "s"}
                             </p>
                           </td>
 
@@ -1093,7 +1616,7 @@ const AdminDashboard = () => {
                               {order.name || "Customer"}
                             </p>
                             <p className="mt-1 max-w-[220px] truncate text-xs text-slate-400">
-                              {order.email || order.phone || "—"}
+                              {order.email || order.phoneNumber || "—"}
                             </p>
                           </td>
 
@@ -1106,10 +1629,35 @@ const AdminDashboard = () => {
                                 {sku}
                               </p>
                             )}
+                            {extraItemCount > 0 && (
+                              <p className="mt-1 text-[10px] font-semibold text-violet-600">
+                                +{extraItemCount} more cart {extraItemCount === 1 ? "item" : "items"}
+                              </p>
+                            )}
                           </td>
 
-                          <td className="px-5 py-4 text-sm font-semibold text-slate-900">
-                            {formatPrice(order.subtotal)}
+                          <td className="px-5 py-4">
+                            <p className="text-sm font-semibold text-slate-950">
+                              {formatPrice(getOrderTotal(order))}
+                            </p>
+
+                            <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-400">
+                              <p>
+                                Subtotal {formatPrice(getOrderSubtotal(order))}
+                              </p>
+
+                              {getOrderDeliveryCharge(order) > 0 && (
+                                <p>
+                                  Delivery {formatPrice(getOrderDeliveryCharge(order))}
+                                </p>
+                              )}
+
+                              {order.province && (
+                                <p className="font-medium text-slate-500">
+                                  {order.province}
+                                </p>
+                              )}
+                            </div>
                           </td>
 
                           <td className="px-5 py-4 text-xs text-slate-500">
@@ -1169,14 +1717,21 @@ const AdminDashboard = () => {
 
               <div className="divide-y divide-slate-100 xl:hidden">
                 {filteredOrders.map((order) => {
+                  const displayItems = getOrderItems(order);
+                  const firstItem = displayItems[0];
                   const productName =
+                    firstItem?.product?.name ||
+                    firstItem?.productSnapshot?.name ||
                     order.product?.name ||
                     "Product unavailable";
 
                   const sku =
+                    firstItem?.variant?.sku ||
+                    firstItem?.variantSnapshot?.sku ||
                     order.variant?.sku ||
                     order.variantSnapshot?.sku ||
                     "";
+                  const extraItemCount = Math.max(0, displayItems.length - 1);
 
                   return (
                     <div key={order._id} className="p-4 sm:p-5">
@@ -1206,7 +1761,7 @@ const AdminDashboard = () => {
                           </p>
                           <p className="mt-1 truncate text-xs text-slate-500">
                             {order.email ||
-                              order.phone ||
+                              order.phoneNumber ||
                               "No contact"}
                           </p>
                         </div>
@@ -1223,6 +1778,25 @@ const AdminDashboard = () => {
                               {sku}
                             </p>
                           )}
+                          {extraItemCount > 0 && (
+                            <p className="mt-1 text-[10px] font-semibold text-violet-600">
+                              +{extraItemCount} more cart {extraItemCount === 1 ? "item" : "items"}
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                            Delivery
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {order.province || "Legacy order"}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {getOrderDeliveryCharge(order) > 0
+                              ? formatPrice(getOrderDeliveryCharge(order))
+                              : "No saved delivery charge"}
+                          </p>
                         </div>
                       </div>
 
@@ -1232,7 +1806,13 @@ const AdminDashboard = () => {
                             Total
                           </p>
                           <p className="mt-1 text-lg font-semibold text-slate-950">
-                            {formatPrice(order.subtotal)}
+                            {formatPrice(getOrderTotal(order))}
+                          </p>
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            {formatPrice(getOrderSubtotal(order))} subtotal
+                            {getOrderDeliveryCharge(order) > 0
+                              ? ` + ${formatPrice(getOrderDeliveryCharge(order))} delivery`
+                              : ""}
                           </p>
                         </div>
 
@@ -1265,6 +1845,190 @@ const AdminDashboard = () => {
           )}
         </div>
       </section>
+
+      {categoryModal && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 10,
+              scale: 0.98,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              scale: 1,
+            }}
+            className="w-full max-w-lg rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_30px_100px_rgba(15,23,42,0.2)]"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                  <FaTag />
+                </div>
+
+                <h2 className="mt-5 text-xl font-semibold tracking-tight text-slate-950">
+                  {categoryModal.mode === "edit"
+                    ? "Edit category"
+                    : "Add category"}
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Categories organize products across the storefront.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCategoryModal(null)}
+                disabled={categorySaving}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+              >
+                <FaTimes className="text-xs" />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-5">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Category name
+                </label>
+
+                <input
+                  value={categoryModal.name}
+                  onChange={(event) =>
+                    setCategoryModal((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                  maxLength={120}
+                  autoFocus
+                  placeholder="e.g. Electronics"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Description
+                </label>
+
+                <textarea
+                  value={categoryModal.description}
+                  onChange={(event) =>
+                    setCategoryModal((current) => ({
+                      ...current,
+                      description: event.target.value,
+                    }))
+                  }
+                  rows={4}
+                  placeholder="What kind of products belong in this category?"
+                  className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-100"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setCategoryModal(null)}
+                disabled={categorySaving}
+                className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={saveCategory}
+                disabled={categorySaving}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-wait disabled:opacity-60"
+              >
+                {categorySaving ? (
+                  <>
+                    <FaSpinner className="animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <FaCheckCircle />
+                    {categoryModal.mode === "edit"
+                      ? "Save changes"
+                      : "Create category"}
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {categoryArchiveTarget && (
+        <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">
+          <motion.div
+            initial={{
+              opacity: 0,
+              y: 10,
+              scale: 0.98,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+              scale: 1,
+            }}
+            className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_30px_100px_rgba(15,23,42,0.2)]"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+              <FaArchive />
+            </div>
+
+            <h2 className="mt-5 text-xl font-semibold tracking-tight text-slate-950">
+              Archive this category?
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              <span className="font-semibold text-slate-700">
+                {categoryArchiveTarget.name}
+              </span>{" "}
+              will disappear from category selectors. The backend will block
+              this action if any non-archived product still uses it.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() =>
+                  setCategoryArchiveTarget(null)
+                }
+                disabled={categoryArchiving}
+                className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={archiveCategory}
+                disabled={categoryArchiving}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-wait disabled:opacity-60"
+              >
+                {categoryArchiving ? (
+                  <>
+                    <FaSpinner className="animate-spin" />
+                    Archiving...
+                  </>
+                ) : (
+                  <>
+                    <FaArchive />
+                    Archive category
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {archiveTarget && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/40 px-4 backdrop-blur-sm">

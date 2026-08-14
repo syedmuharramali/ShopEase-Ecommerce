@@ -12,13 +12,17 @@ import {
   FaBoxOpen,
   FaEnvelope,
   FaHome,
+  FaHeart,
   FaLock,
+  FaShoppingCart,
   FaSignOutAlt,
   FaStore,
   FaTachometerAlt,
   FaTimes,
+  FaTruck,
 } from "react-icons/fa";
 import { logout } from "../slices/authSlice";
+import { useStore } from "../context/storeContext";
 
 const Navbar = () => {
   const dispatch = useDispatch();
@@ -26,6 +30,7 @@ const Navbar = () => {
   const location = useLocation();
 
   const { adminInfo } = useSelector((state) => state.auth);
+  const { cartCount, wishlistCount } = useStore();
 
   const [scrolled, setScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -93,6 +98,11 @@ const Navbar = () => {
       icon: FaBoxOpen,
     },
     {
+      to: "/track-order",
+      label: "Track order",
+      icon: FaTruck,
+    },
+    {
       to: "/contact",
       label: "Contact",
       icon: FaEnvelope,
@@ -148,6 +158,48 @@ const Navbar = () => {
             </nav>
 
             <div className="hidden items-center gap-2 md:flex">
+              <NavLink
+                to="/wishlist"
+                className={({ isActive }) =>
+                  `relative flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                    isActive
+                      ? "border-rose-200 bg-rose-50 text-rose-600"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-rose-600"
+                  }`
+                }
+                aria-label={`Wishlist with ${wishlistCount} saved products`}
+                title="Wishlist"
+              >
+                <FaHeart className="text-sm" />
+                {wishlistCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-white">
+                    {wishlistCount > 99 ? "99+" : wishlistCount}
+                  </span>
+                )}
+              </NavLink>
+
+              <NavLink
+                to="/cart"
+                className={({ isActive }) =>
+                  `relative flex h-10 w-10 items-center justify-center rounded-xl border transition ${
+                    isActive
+                      ? "border-violet-200 bg-violet-50 text-violet-700"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-violet-700"
+                  }`
+                }
+                aria-label={`Shopping cart with ${cartCount} items`}
+                title="Cart"
+              >
+                <FaShoppingCart className="text-sm" />
+                {cartCount > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-950 px-1 text-[9px] font-bold text-white ring-2 ring-white">
+                    {cartCount > 99 ? "99+" : cartCount}
+                  </span>
+                )}
+              </NavLink>
+
+              <div className="mx-1 h-6 w-px bg-slate-200" />
+
               {adminInfo ? (
                 <>
                   <NavLink
@@ -229,6 +281,23 @@ const Navbar = () => {
                   </NavLink>
                 ))}
               </nav>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <NavLink
+                  to="/wishlist"
+                  className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3.5 text-sm font-semibold text-slate-700"
+                >
+                  <span className="flex items-center gap-2"><FaHeart className="text-rose-500" /> Wishlist</span>
+                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] text-rose-600">{wishlistCount}</span>
+                </NavLink>
+                <NavLink
+                  to="/cart"
+                  className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3.5 text-sm font-semibold text-slate-700"
+                >
+                  <span className="flex items-center gap-2"><FaShoppingCart className="text-violet-600" /> Cart</span>
+                  <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] text-violet-700">{cartCount}</span>
+                </NavLink>
+              </div>
 
               <div className="my-5 h-px bg-slate-100" />
 

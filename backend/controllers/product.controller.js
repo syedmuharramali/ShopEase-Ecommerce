@@ -1,6 +1,8 @@
 const Product = require("../models/product.model");
 const Category = require("../models/category.model");
-
+const ProductVariant = require(
+  "../models/productVariant.model"
+);
 function filesToProductImages(
   files,
   productName,
@@ -57,85 +59,120 @@ const getProducts = async (req, res) => {
     let {
       page = 1,
       limit = 12,
-      search,
-      category,
-      brand,
+      search = "",
+      category = "",
+      brand = "",
       status = "active",
       featured,
-      sort = "newest",
+      sort = "featured",
       minPrice,
       maxPrice,
     } = req.query;
 
-    page = Math.max(parseInt(page, 10) || 1, 1);
+    /*
+     * ----------------------------------------
+     * Pagination
+     * ----------------------------------------
+     */
+
+    page = Math.max(
+      parseInt(page, 10) || 1,
+      1
+    );
+
     limit = Math.min(
-      Math.max(parseInt(limit, 10) || 12, 1),
+      Math.max(
+        parseInt(limit, 10) || 12,
+        1
+      ),
       100
     );
 
-    const skip = (page - 1) * limit;
+    const skip =
+      (page - 1) * limit;
+
+    /*
+     * ----------------------------------------
+     * Base product filter
+     * ----------------------------------------
+     */
 
     const filter = {};
 
-    /*
-     * ----------------------------------------
-     * Status
-     * ----------------------------------------
-     */
+    const safeStatus = [
+      "active",
+      "draft",
+      "archived",
+    ].includes(status)
+      ? status
+      : "active";
 
-    if (status) {
-      filter.status = status;
-    }
-
-    /*
-     * ----------------------------------------
-     * Featured
-     * ----------------------------------------
-     */
+    filter.status = req.allowAnyProductStatus
+      ? safeStatus
+      : "active";
 
     if (featured !== undefined) {
-      filter.featured = featured === "true";
+      filter.featured =
+        featured === "true";
+    }
+
+    if (brand && brand.trim()) {
+      filter.brand = new RegExp(
+        `^${brand
+          .trim()
+          .replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          )}$`,
+        "i"
+      );
     }
 
     /*
      * ----------------------------------------
-     * Brand
-     * ----------------------------------------
-     */
-
-    if (brand) {
-      filter.brand = brand;
-    }
-
-    /*
-     * ----------------------------------------
-     * Category
+     * Category filter
      *
-     * Accepts category slug.
+     * Frontend sends category slug.
      * ----------------------------------------
      */
 
-    if (category) {
-      const categoryDoc = await Category.findOne({
-        slug: category.toLowerCase(),
-        isActive: true,
-      })
-        .select("_id")
-        .lean();
+    if (category && category.trim()) {
+      const categoryDoc =
+        await Category.findOne({
+          slug: category
+            .trim()
+            .toLowerCase(),
+          isActive: true,
+        })
+          .select("_id")
+          .lean();
 
       if (!categoryDoc) {
         return res.status(200).json({
           products: [],
+
+          categories:
+            await Category.find({
+              isActive: true,
+            })
+              .select("name slug")
+              .sort({ name: 1 })
+              .lean(),
+
           pagination: {
             page,
             limit,
             total: 0,
             totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage:
+              page > 1,
           },
         });
       }
 
-      filter.category = categoryDoc._id;
+      filter.category =
+        categoryDoc._id;
     }
 
     /*
@@ -145,34 +182,61 @@ const getProducts = async (req, res) => {
      */
 
     if (search && search.trim()) {
-      const searchRegex = new RegExp(
-        search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-        "i"
-      );
+      const safeSearch =
+        search
+          .trim()
+          .replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          );
+
+      const searchRegex =
+        new RegExp(
+          safeSearch,
+          "i"
+        );
 
       filter.$or = [
-        { name: searchRegex },
-        { brand: searchRegex },
-        { description: searchRegex },
-        { shortDescription: searchRegex },
-        { tags: searchRegex },
+        {
+          name:
+            searchRegex,
+        },
+        {
+          brand:
+            searchRegex,
+        },
+        {
+          description:
+            searchRegex,
+        },
+        {
+          shortDescription:
+            searchRegex,
+        },
+        {
+          tags:
+            searchRegex,
+        },
       ];
     }
 
     /*
      * ----------------------------------------
-     * Price filtering
-     *
-     * IMPORTANT:
-     *
-     * Price now belongs to ProductVariant.
-     *
-     * We'll add proper variant-aware filtering
-     * after the Variant API is implemented.
-     *
-     * These values are therefore not applied yet.
+     * Price filters
      * ----------------------------------------
      */
+
+    const parsedMinPrice =
+      minPrice !== undefined &&
+      minPrice !== ""
+        ? Number(minPrice)
+        : null;
+
+    const parsedMaxPrice =
+      maxPrice !== undefined &&
+      maxPrice !== ""
+        ? Number(maxPrice)
+        : null;
 
     /*
      * ----------------------------------------
@@ -180,11 +244,25 @@ const getProducts = async (req, res) => {
      * ----------------------------------------
      */
 
-    let sortQuery = {
-      createdAt: -1,
-    };
+    let sortQuery;
 
     switch (sort) {
+      case "price-low":
+        sortQuery = {
+          _priceMissing: 1,
+          "storefront.minPrice": 1,
+          createdAt: -1,
+        };
+        break;
+
+      case "price-high":
+        sortQuery = {
+          _priceMissing: 1,
+          "storefront.minPrice": -1,
+          createdAt: -1,
+        };
+        break;
+
       case "oldest":
         sortQuery = {
           createdAt: 1,
@@ -204,8 +282,15 @@ const getProducts = async (req, res) => {
         break;
 
       case "newest":
+        sortQuery = {
+          createdAt: -1,
+        };
+        break;
+
+      case "featured":
       default:
         sortQuery = {
+          featured: -1,
           createdAt: -1,
         };
         break;
@@ -213,41 +298,390 @@ const getProducts = async (req, res) => {
 
     /*
      * ----------------------------------------
-     * Query
+     * Build MongoDB pipeline
      * ----------------------------------------
      */
 
-    const [products, total] =
-      await Promise.all([
-        Product.find(filter)
-          .populate(
-            "category",
-            "name slug"
-          )
-          .select(
-            "name slug shortDescription brand category images status featured createdAt"
-          )
-          .sort(sortQuery)
-          .skip(skip)
-          .limit(limit)
-          .lean(),
+    const pipeline = [
+      /*
+       * Only products matching
+       * storefront filters.
+       */
+      {
+        $match: filter,
+      },
 
-        Product.countDocuments(filter),
-      ]);
+      /*
+       * Get all ACTIVE variants in one
+       * database operation.
+       *
+       * This replaces the frontend
+       * making one HTTP request per product.
+       */
+      {
+        $lookup: {
+          from:
+            ProductVariant
+              .collection
+              .name,
+
+          let: {
+            productId:
+              "$_id",
+          },
+
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    {
+                      $eq: [
+                        "$product",
+                        "$$productId",
+                      ],
+                    },
+                    {
+                      $eq: [
+                        "$isActive",
+                        true,
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+
+            {
+              $sort: {
+                isDefault: -1,
+                createdAt: 1,
+              },
+            },
+          ],
+
+          as: "activeVariants",
+        },
+      },
+
+      /*
+       * Build storefront information.
+       */
+      {
+        $set: {
+          storefront: {
+            variants:
+              "$activeVariants",
+
+            defaultVariant: {
+              $ifNull: [
+                {
+                  $arrayElemAt: [
+                    {
+                      $filter: {
+                        input:
+                          "$activeVariants",
+
+                        as: "variant",
+
+                        cond: {
+                          $eq: [
+                            "$$variant.isDefault",
+                            true,
+                          ],
+                        },
+                      },
+                    },
+                    0,
+                  ],
+                },
+
+                {
+                  $arrayElemAt: [
+                    "$activeVariants",
+                    0,
+                  ],
+                },
+              ],
+            },
+
+            minPrice: {
+              $min:
+                "$activeVariants.price",
+            },
+
+            maxPrice: {
+              $max:
+                "$activeVariants.price",
+            },
+
+            totalStock: {
+              $sum:
+                "$activeVariants.stock",
+            },
+
+            inStock: {
+              $gt: [
+                {
+                  $sum:
+                    "$activeVariants.stock",
+                },
+                0,
+              ],
+            },
+
+            variantCount: {
+              $size:
+                "$activeVariants",
+            },
+          },
+        },
+      },
+
+      /*
+       * Used so products without prices
+       * appear AFTER priced products.
+       */
+      {
+        $set: {
+          _priceMissing: {
+            $cond: [
+              {
+                $eq: [
+                  "$storefront.minPrice",
+                  null,
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+      },
+    ];
+
+    /*
+     * ----------------------------------------
+     * Variant-aware price filtering
+     * ----------------------------------------
+     */
+
+    const priceFilter = {};
+
+    if (
+      Number.isFinite(
+        parsedMinPrice
+      ) &&
+      parsedMinPrice >= 0
+    ) {
+      /*
+       * Product must have at least one
+       * variant whose range reaches
+       * the requested minimum.
+       */
+      priceFilter[
+        "storefront.maxPrice"
+      ] = {
+        ...(priceFilter[
+          "storefront.maxPrice"
+        ] || {}),
+        $gte:
+          parsedMinPrice,
+      };
+    }
+
+    if (
+      Number.isFinite(
+        parsedMaxPrice
+      ) &&
+      parsedMaxPrice >= 0
+    ) {
+      priceFilter[
+        "storefront.minPrice"
+      ] = {
+        ...(priceFilter[
+          "storefront.minPrice"
+        ] || {}),
+        $lte:
+          parsedMaxPrice,
+      };
+    }
+
+    if (
+      Object.keys(
+        priceFilter
+      ).length
+    ) {
+      pipeline.push({
+        $match:
+          priceFilter,
+      });
+    }
+
+    /*
+     * ----------------------------------------
+     * Populate category
+     * ----------------------------------------
+     */
+
+    pipeline.push(
+      {
+        $lookup: {
+          from:
+            Category.collection.name,
+
+          localField:
+            "category",
+
+          foreignField:
+            "_id",
+
+          as:
+            "categoryData",
+        },
+      },
+
+      {
+        $set: {
+          category: {
+            $arrayElemAt: [
+              "$categoryData",
+              0,
+            ],
+          },
+        },
+      },
+
+      /*
+       * Sort BEFORE pagination.
+       *
+       * This is important:
+       * price sorting now works across
+       * the entire collection.
+       */
+      {
+        $sort:
+          sortQuery,
+      },
+
+      /*
+       * Get products + total count
+       * using the same filtered dataset.
+       */
+      {
+        $facet: {
+          metadata: [
+            {
+              $count: "total",
+            },
+          ],
+
+          products: [
+            {
+              $skip:
+                skip,
+            },
+
+            {
+              $limit:
+                limit,
+            },
+
+            {
+              $project: {
+                name: 1,
+                slug: 1,
+                description: 1,
+                shortDescription: 1,
+                brand: 1,
+                category: {
+                  _id:
+                    "$category._id",
+                  name:
+                    "$category.name",
+                  slug:
+                    "$category.slug",
+                },
+                images: 1,
+                tags: 1,
+                status: 1,
+                featured: 1,
+                storefront: 1,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            },
+          ],
+        },
+      }
+    );
+
+    /*
+     * ----------------------------------------
+     * Run products + category list
+     * ----------------------------------------
+     */
+
+    const [
+      result,
+      categories,
+    ] = await Promise.all([
+      Product.aggregate(
+        pipeline
+      ),
+
+      Category.find({
+        isActive: true,
+      })
+        .select(
+          "name slug"
+        )
+        .sort({
+          name: 1,
+        })
+        .lean(),
+    ]);
+
+    const resultData =
+      result[0] || {
+        metadata: [],
+        products: [],
+      };
+
+    const products =
+      resultData.products || [];
+
+    const total =
+      resultData.metadata?.[0]
+        ?.total || 0;
 
     const totalPages =
-      Math.ceil(total / limit);
+      Math.ceil(
+        total / limit
+      );
+
+    /*
+     * ----------------------------------------
+     * Response
+     * ----------------------------------------
+     */
 
     return res.status(200).json({
       products,
+
+      categories,
 
       pagination: {
         page,
         limit,
         total,
         totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
+
+        hasNextPage:
+          page < totalPages,
+
+        hasPreviousPage:
+          page > 1,
       },
     });
   } catch (error) {
@@ -257,20 +691,25 @@ const getProducts = async (req, res) => {
     );
 
     return res.status(500).json({
-      message: "Failed to fetch products",
-      error: error.message,
+      message:
+        "Failed to fetch products",
+
+      error:
+        error.message,
     });
   }
 };
-
 /*
  * GET /api/products/:id
  */
 const getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(
-      req.params.id
-    )
+   const product = await Product.findOne({
+  _id: req.params.id,
+  ...(req.allowAnyProductStatus
+    ? {}
+    : { status: "active" }),
+})
       .populate(
         "category",
         "name slug description"
@@ -304,8 +743,9 @@ const getProductBySlug = async (req, res) => {
   try {
     const product =
       await Product.findOne({
-        slug: req.params.slug.toLowerCase(),
-      })
+  slug: req.params.slug.toLowerCase(),
+  status: "active",
+})
         .populate(
           "category",
           "name slug description"
@@ -644,6 +1084,18 @@ const deleteProduct = async (req, res) => {
     });
   }
 };
+const getAdminProducts = async (req, res) => {
+  req.allowAnyProductStatus = true;
+  return getProducts(req, res);
+};
+
+const getAdminProductById = async (
+  req,
+  res
+) => {
+  req.allowAnyProductStatus = true;
+  return getProductById(req, res);
+};
 
 module.exports = {
   getProducts,
@@ -652,4 +1104,6 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
+  getAdminProducts,
+  getAdminProductById
 };

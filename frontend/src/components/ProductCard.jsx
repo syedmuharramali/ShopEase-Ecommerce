@@ -1,12 +1,13 @@
-
 import React from "react";
 import { Link } from "react-router";
 import {
   FaArrowRight,
   FaBoxOpen,
   FaCheckCircle,
+  FaHeart,
   FaLayerGroup,
 } from "react-icons/fa";
+import { useStore } from "../context/storeContext";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
 
@@ -52,6 +53,7 @@ const getCategoryName = (category) => {
 };
 
 const ProductCard = ({ product }) => {
+  const { isWishlisted, toggleWishlist } = useStore();
   const storefront = product.storefront || {};
   const defaultVariant = storefront.defaultVariant;
   const productImage =
@@ -81,6 +83,21 @@ const ProductCard = ({ product }) => {
 
   const inStock = storefront.inStock;
   const variantCount = storefront.variantCount || 0;
+  const wishlisted = isWishlisted(product._id);
+
+  const handleWishlist = () => {
+    toggleWishlist({
+      productId: product._id,
+      name: product.name,
+      brand: product.brand || "",
+      categoryName: getCategoryName(product.category),
+      image: productImage,
+      minPrice,
+      maxPrice,
+      inStock,
+      variantCount,
+    });
+  };
 
   return (
     <article className="group h-full overflow-hidden rounded-[28px] border border-slate-200 bg-white transition duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-[0_24px_70px_rgba(15,23,42,0.10)]">
@@ -189,20 +206,19 @@ const ProductCard = ({ product }) => {
             )}
           </div>
 
-          <div
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-              inStock
-                ? "bg-emerald-50 text-emerald-600"
-                : "bg-slate-100 text-slate-400"
+          <button
+            type="button"
+            onClick={handleWishlist}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition ${
+              wishlisted
+                ? "border-rose-200 bg-rose-50 text-rose-500"
+                : "border-slate-200 bg-white text-slate-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-500"
             }`}
-            title={inStock ? "Available" : "Currently unavailable"}
+            aria-label={wishlisted ? `Remove ${product.name} from wishlist` : `Save ${product.name} to wishlist`}
+            title={wishlisted ? "Remove from wishlist" : "Save to wishlist"}
           >
-            {inStock ? (
-              <FaCheckCircle className="text-sm" />
-            ) : (
-              <FaBoxOpen className="text-sm" />
-            )}
-          </div>
+            <FaHeart className="text-sm" />
+          </button>
         </div>
       </div>
     </article>

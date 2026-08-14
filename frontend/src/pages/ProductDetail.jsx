@@ -9,6 +9,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaEnvelope,
+  FaHeart,
   FaLock,
   FaMinus,
   FaPlus,
@@ -18,6 +19,8 @@ import {
   FaTruck,
 } from 'react-icons/fa';
 import EmailModal from '../components/EmailModal';
+import ProductCard from '../components/ProductCard';
+import { useStore } from '../context/storeContext';
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || '').replace(/\/+$/, '');
 const ASSET_BASE_URL = (
@@ -76,6 +79,7 @@ const ProductDetailSkeleton = () => (
 const ProductDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { addToCart, isWishlisted, toggleWishlist } = useStore();
 
   const [product, setProduct] = useState(null);
   const [options, setOptions] = useState([]);
@@ -87,6 +91,9 @@ const ProductDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectionError, setSelectionError] = useState('');
+  const [cartMessage, setCartMessage] = useState('');
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -128,6 +135,74 @@ const ProductDetail = () => {
     };
   }, [id]);
 
+  useEffect(() => {
+    const categorySlug =
+      typeof product?.category === 'object'
+        ? product.category?.slug || ''
+        : '';
+
+    if (!product?._id || !categorySlug) {
+      setRelatedProducts([]);
+      setRelatedLoading(false);
+      return undefined;
+    }
+
+    let ignore = false;
+
+    const fetchRelatedProducts = async () => {
+      try {
+        setRelatedLoading(true);
+
+        /*
+         * One small category-scoped request only.
+         * We ask for five because the current product may be included,
+         * then display at most four recommendations.
+         */
+        const response = await axios.get(`${API_BASE_URL}/products`, {
+          params: {
+            category: categorySlug,
+            limit: 5,
+            sort: 'featured',
+          },
+        });
+
+        const productList = Array.isArray(response.data)
+          ? response.data
+          : Array.isArray(response.data?.products)
+            ? response.data.products
+            : [];
+
+        if (!ignore) {
+          setRelatedProducts(
+            productList
+              .filter((item) => item?._id && item._id !== product._id)
+              .slice(0, 4)
+          );
+        }
+      } catch (requestError) {
+        /*
+         * Recommendations should never break the product purchase flow.
+         * Fail silently and simply omit this optional section.
+         */
+        console.warn('Related products loading error:', requestError);
+
+        if (!ignore) {
+          setRelatedProducts([]);
+        }
+      } finally {
+        if (!ignore) {
+          setRelatedLoading(false);
+        }
+      }
+    };
+
+    fetchRelatedProducts();
+
+    return () => {
+      ignore = true;
+    };
+  }, [product?._id, product?.category?.slug]);
+
   const activeOptions = useMemo(
     () =>
       options
@@ -148,48 +223,57 @@ const ProductDetail = () => {
   );
 
   useEffect(() => {
-    if (!activeVariants.length) return;
+    if (!activeVariants.length) {
+      setSelectedValues({});
+      return;
+    }
 
     if (activeOptions.length === 0) {
       setSelectedValues({});
       return;
     }
 
-    const preferredVariant =
-      activeVariants.find(
-        (variant) =>
-          variant.isDefault &&
-          Number(variant.stock) > 0 &&
-          (variant.selectedOptions || []).length > 0
-      ) ||
-      activeVariants.find(
-        (variant) =>
-          Number(variant.stock) > 0 &&
-          activeOptions.every((option) =>
-            (variant.selectedOptions || []).some(
-              (selected) => selected.optionId === option._id
-            )
-          )
-      ) ||
-      activeVariants.find((variant) =>
-        activeOptions.every((option) =>
-          (variant.selectedOptions || []).some(
-            (selected) => selected.optionId === option._id
-          )
+    const hasEveryActiveOption = (variant) =>
+      activeOptions.every((option) =>
+        (variant.selectedOptions || []).some(
+          (selected) => selected.optionId === option._id
         )
       );
 
-    if (!preferredVariant) return;
+    const completeVariants = activeVariants.filter(
+      hasEveryActiveOption
+    );
+
+    const preferredVariant =
+      completeVariants.find(
+        (variant) =>
+          variant.isDefault &&
+          Number(variant.stock || 0) > 0
+      ) ||
+      completeVariants.find(
+        (variant) => Number(variant.stock || 0) > 0
+      ) ||
+      completeVariants.find(
+        (variant) => variant.isDefault
+      ) ||
+      completeVariants[0] ||
+      null;
+
+    if (!preferredVariant) {
+      setSelectedValues({});
+      return;
+    }
 
     const initialSelection = {};
 
-    preferredVariant.selectedOptions?.forEach((selected) => {
-      const optionStillActive = activeOptions.some(
-        (option) => option._id === selected.optionId
-      );
+    activeOptions.forEach((option) => {
+      const selected =
+        preferredVariant.selectedOptions?.find(
+          (item) => item.optionId === option._id
+        );
 
-      if (optionStillActive) {
-        initialSelection[selected.optionId] = selected.valueId;
+      if (selected?.valueId) {
+        initialSelection[option._id] = selected.valueId;
       }
     });
 
@@ -201,7 +285,17 @@ const ProductDetail = () => {
 
     if (activeOptions.length === 0) {
       return (
-        activeVariants.find((variant) => variant.isDefault) ||
+        activeVariants.find(
+          (variant) =>
+            variant.isDefault &&
+            Number(variant.stock || 0) > 0
+        ) ||
+        activeVariants.find(
+          (variant) => Number(variant.stock || 0) > 0
+        ) ||
+        activeVariants.find(
+          (variant) => variant.isDefault
+        ) ||
         activeVariants[0] ||
         null
       );
@@ -252,34 +346,76 @@ const ProductDetail = () => {
     return activeVariants.some((variant) => {
       if (Number(variant.stock || 0) <= 0) return false;
 
-      const variantSelections = variant.selectedOptions || [];
-      const hasCandidate = variantSelections.some(
+      return (variant.selectedOptions || []).some(
         (selected) =>
-          selected.optionId === optionId && selected.valueId === valueId
-      );
-
-      if (!hasCandidate) return false;
-
-      return Object.entries(selectedValues).every(
-        ([selectedOptionId, selectedValueId]) => {
-          if (!selectedValueId || selectedOptionId === optionId) return true;
-
-          return variantSelections.some(
-            (selected) =>
-              selected.optionId === selectedOptionId &&
-              selected.valueId === selectedValueId
-          );
-        }
+          selected.optionId === optionId &&
+          selected.valueId === valueId
       );
     });
   };
 
   const handleOptionSelect = (optionId, valueId) => {
     setSelectionError('');
-    setSelectedValues((current) => ({
-      ...current,
-      [optionId]: valueId,
-    }));
+
+    const candidateVariants = activeVariants.filter(
+      (variant) =>
+        Number(variant.stock || 0) > 0 &&
+        (variant.selectedOptions || []).some(
+          (selected) =>
+            selected.optionId === optionId &&
+            selected.valueId === valueId
+        )
+    );
+
+    if (!candidateVariants.length) {
+      setSelectionError(
+        'That option is currently unavailable.'
+      );
+      return;
+    }
+
+    setSelectedValues((current) => {
+      const requestedSelection = {
+        ...current,
+        [optionId]: valueId,
+      };
+
+      const compatibleVariant =
+        candidateVariants.find((variant) =>
+          activeOptions.every((option) => {
+            const requestedValue =
+              requestedSelection[option._id];
+
+            if (!requestedValue) return true;
+
+            return (variant.selectedOptions || []).some(
+              (selected) =>
+                selected.optionId === option._id &&
+                selected.valueId === requestedValue
+            );
+          })
+        ) ||
+        candidateVariants.find(
+          (variant) => variant.isDefault
+        ) ||
+        candidateVariants[0];
+
+      const nextSelection = {};
+
+      activeOptions.forEach((option) => {
+        const selected =
+          compatibleVariant.selectedOptions?.find(
+            (item) => item.optionId === option._id
+          );
+
+        if (selected?.valueId) {
+          nextSelection[option._id] =
+            selected.valueId;
+        }
+      });
+
+      return nextSelection;
+    });
   };
 
   const decreaseQuantity = () => {
@@ -292,6 +428,67 @@ const ProductDetail = () => {
     setQuantity((current) =>
       Math.min(Number(selectedVariant.stock || 0), current + 1)
     );
+  };
+
+  const getWishlistSnapshot = () => ({
+    productId: product?._id,
+    name: product?.name || "Product",
+    brand: product?.brand || "",
+    categoryName:
+      typeof product?.category === "object"
+        ? product?.category?.name || ""
+        : product?.category || "",
+    image: selectedVariant?.images?.[0] || product?.images?.[0] || null,
+    minPrice: selectedVariant?.price != null ? Number(selectedVariant.price) : null,
+    maxPrice: selectedVariant?.price != null ? Number(selectedVariant.price) : null,
+    inStock: activeVariants.some((variant) => Number(variant.stock || 0) > 0),
+    variantCount: activeVariants.length,
+  });
+
+  const handleWishlist = () => {
+    if (product?._id) toggleWishlist(getWishlistSnapshot());
+  };
+
+  const handleAddToCart = () => {
+    setSelectionError('');
+    setCartMessage('');
+
+    if (activeOptions.length > 0 && !selectedVariant) {
+      setSelectionError('Please select an available option combination.');
+      return;
+    }
+    if (!selectedVariant || Number(selectedVariant.stock || 0) <= 0) {
+      setSelectionError('This variant is currently unavailable.');
+      return;
+    }
+
+    const result = addToCart({
+      productId: product._id,
+      variantId: selectedVariant._id,
+      productName: product.name,
+      brand: product.brand || '',
+      categoryName:
+        typeof product.category === 'object'
+          ? product.category?.name || ''
+          : product.category || '',
+      image: selectedVariant.images?.[0] || product.images?.[0] || null,
+      sku: selectedVariant.sku || '',
+      variantTitle: selectedVariant.title || '',
+      selectedOptions: Array.isArray(selectedVariant.selectedOptions)
+        ? selectedVariant.selectedOptions.map((option) => ({
+            optionId: option.optionId,
+            optionName: option.optionName,
+            valueId: option.valueId,
+            value: option.value,
+          }))
+        : [],
+      unitPrice: Number(selectedVariant.price),
+      stock: Number(selectedVariant.stock),
+      quantity,
+    });
+
+    if (result.ok) setCartMessage(result.message);
+    else setSelectionError(result.message);
   };
 
   const handleBuyNow = () => {
@@ -365,6 +562,7 @@ const ProductDetail = () => {
 
   const currentImage = galleryImages[currentImageIndex] || null;
   const stock = Number(selectedVariant?.stock || 0);
+  const wishlisted = product?._id ? isWishlisted(product._id) : false;
   const hasDiscount =
     selectedVariant?.compareAtPrice &&
     Number(selectedVariant.compareAtPrice) > Number(selectedVariant.price);
@@ -654,24 +852,54 @@ const ProductDetail = () => {
                     </motion.div>
                   )}
 
-                  <div className="grid gap-3 sm:grid-cols-[1.25fr_0.75fr]">
+                  {cartMessage && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700"
+                    >
+                      {cartMessage}
+                    </motion.div>
+                  )}
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={handleAddToCart}
+                      disabled={!selectedVariant || stock <= 0}
+                      className="group inline-flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-violet-600 px-6 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      <FaShoppingBag /> Add to cart
+                    </button>
                     <button
                       type="button"
                       onClick={handleBuyNow}
                       disabled={!selectedVariant || stock <= 0}
-                      className="group inline-flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-slate-950 px-6 text-sm font-bold text-white shadow-[0_18px_40px_-18px_rgba(15,23,42,0.7)] transition hover:-translate-y-0.5 hover:bg-violet-700 hover:shadow-[0_20px_44px_-16px_rgba(109,40,217,0.48)] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                      className="group inline-flex min-h-14 items-center justify-center gap-3 rounded-2xl bg-slate-950 px-6 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                     >
-                      <FaShoppingBag className="transition group-hover:scale-110" />
                       Buy now
                     </button>
+                  </div>
 
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
                     <button
                       type="button"
                       onClick={() => setShowEmailModal(true)}
-                      className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-800 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50"
+                      disabled={!selectedVariant}
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-800 transition hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
                     >
-                      <FaEnvelope />
-                      Email info
+                      <FaEnvelope /> Email info
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleWishlist}
+                      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-5 text-sm font-bold transition ${
+                        wishlisted
+                          ? 'border-rose-200 bg-rose-50 text-rose-600'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600'
+                      }`}
+                    >
+                      <FaHeart /> {wishlisted ? 'Saved' : 'Wishlist'}
                     </button>
                   </div>
 
@@ -738,12 +966,67 @@ const ProductDetail = () => {
               </p>
             </div>
           </section>
+
+          {(relatedLoading || relatedProducts.length > 0) && (
+            <section className="mt-10">
+              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600">
+                    You may also like
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] text-slate-950 sm:text-3xl">
+                    More from {categoryName || 'this collection'}
+                  </h2>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                    A small selection from the same category — not the full catalog.
+                  </p>
+                </div>
+
+                <Link
+                  to="/products"
+                  className="inline-flex items-center gap-2 text-sm font-bold text-slate-700 transition hover:text-violet-700"
+                >
+                  Explore shop
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </div>
+
+              {relatedLoading ? (
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="overflow-hidden rounded-[28px] border border-slate-200 bg-white"
+                    >
+                      <div className="aspect-[4/4.7] animate-pulse bg-slate-100" />
+                      <div className="space-y-3 p-5">
+                        <div className="h-3 w-20 animate-pulse rounded-full bg-slate-100" />
+                        <div className="h-5 w-4/5 animate-pulse rounded-full bg-slate-100" />
+                        <div className="h-4 w-full animate-pulse rounded-full bg-slate-100" />
+                        <div className="h-6 w-28 animate-pulse rounded-full bg-slate-100" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                  {relatedProducts.map((relatedProduct) => (
+                    <ProductCard
+                      key={relatedProduct._id}
+                      product={relatedProduct}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </main>
 
       {showEmailModal && (
         <EmailModal
           product={product}
+          variant={selectedVariant}
           onClose={() => setShowEmailModal(false)}
         />
       )}

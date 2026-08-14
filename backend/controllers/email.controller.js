@@ -1,12 +1,8 @@
+const mongoose = require("mongoose");
+
 const sendEmail = require("../utils/sendEmail.js");
-
-const Product = require(
-  "../models/product.model.js"
-);
-
-const ProductVariant = require(
-  "../models/productVariant.model.js"
-);
+const Product = require("../models/product.model.js");
+const ProductVariant = require("../models/productVariant.model.js");
 
 function escapeHtml(value = "") {
   return String(value)
@@ -29,11 +25,15 @@ exports.sendProductInfo = async (req, res) => {
       name,
       email,
       productId,
+      variantId,
     } = req.body;
 
     /*
+     * ----------------------------------------
      * Basic validation
+     * ----------------------------------------
      */
+
     if (
       !name?.trim() ||
       !email?.trim() ||
@@ -56,11 +56,40 @@ exports.sendProductInfo = async (req, res) => {
       });
     }
 
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        productId
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid product ID",
+      });
+    }
+
+    if (
+      variantId &&
+      !mongoose.Types.ObjectId.isValid(
+        variantId
+      )
+    ) {
+      return res.status(400).json({
+        message:
+          "Invalid variant ID",
+      });
+    }
+
     /*
+     * ----------------------------------------
      * Find product
+     * ----------------------------------------
      */
+
     const product =
-      await Product.findById(productId)
+      await Product.findOne({
+        _id: productId,
+        status: "active",
+      })
         .populate(
           "category",
           "name"
@@ -69,24 +98,51 @@ exports.sendProductInfo = async (req, res) => {
 
     if (!product) {
       return res.status(404).json({
-        message: "Product not found",
+        message:
+          "Product not found",
       });
     }
 
     /*
-     * Find default/available variant
+     * ----------------------------------------
+     * Find exact selected variant
+     * ----------------------------------------
      */
-    const variant =
-      await ProductVariant.findOne({
-        product: productId,
-        isActive: true,
-      })
-        .sort({
-          isDefault: -1,
-          stock: -1,
-          createdAt: 1,
+
+    let variant = null;
+
+    if (variantId) {
+      variant =
+        await ProductVariant.findOne({
+          _id: variantId,
+          product: productId,
+          isActive: true,
+        }).lean();
+
+      if (!variant) {
+        return res.status(400).json({
+          message:
+            "The selected product variant is no longer available",
+        });
+      }
+    } else {
+      /*
+       * Fallback for older callers that
+       * do not send variantId.
+       */
+
+      variant =
+        await ProductVariant.findOne({
+          product: productId,
+          isActive: true,
         })
-        .lean();
+          .sort({
+            isDefault: -1,
+            stock: -1,
+            createdAt: 1,
+          })
+          .lean();
+    }
 
     if (!variant) {
       return res.status(400).json({
@@ -96,8 +152,11 @@ exports.sendProductInfo = async (req, res) => {
     }
 
     /*
-     * Safe values for email HTML
+     * ----------------------------------------
+     * Safe values
+     * ----------------------------------------
      */
+
     const safeName =
       escapeHtml(name.trim());
 
@@ -122,9 +181,17 @@ exports.sendProductInfo = async (req, res) => {
           "Default"
       );
 
+    const safeSku =
+      escapeHtml(
+        variant.sku || ""
+      );
+
     /*
+     * ----------------------------------------
      * Variant options
+     * ----------------------------------------
      */
+
     const optionText =
       variant.selectedOptions?.length
         ? variant.selectedOptions
@@ -140,16 +207,22 @@ exports.sendProductInfo = async (req, res) => {
         : "Default variant";
 
     /*
+     * ----------------------------------------
      * Frontend URL
+     * ----------------------------------------
      */
+
     const frontendUrl = (
       process.env.FRONTEND_URL ||
       "http://localhost:5173"
     ).replace(/\/+$/, "");
 
     /*
+     * ----------------------------------------
      * Email HTML
+     * ----------------------------------------
      */
+
     const emailHtml = `
       <div
         style="
@@ -192,8 +265,9 @@ exports.sendProductInfo = async (req, res) => {
               line-height: 1.6;
             "
           >
-            Here are the product details
-            you requested.
+            Here are the details for
+            the exact product variant
+            you selected.
           </p>
 
           <div
@@ -229,7 +303,9 @@ exports.sendProductInfo = async (req, res) => {
                 color: #0f172a;
               "
             >
-              ${formatPrice(variant.price)}
+              ${formatPrice(
+                variant.price
+              )}
             </p>
 
             <p>
@@ -242,6 +318,17 @@ exports.sendProductInfo = async (req, res) => {
               ${optionText}
             </p>
 
+            ${
+              safeSku
+                ? `
+                  <p>
+                    <strong>SKU:</strong>
+                    ${safeSku}
+                  </p>
+                `
+                : ""
+            }
+
             <p>
               <strong>Category:</strong>
               ${safeCategory}
@@ -250,8 +337,12 @@ exports.sendProductInfo = async (req, res) => {
             <p>
               <strong>Stock:</strong>
               ${
-                Number(variant.stock) > 0
-                  ? `${variant.stock} available`
+                Number(
+                  variant.stock
+                ) > 0
+                  ? `${Number(
+                      variant.stock
+                    )} available`
                   : "Out of stock"
               }
             </p>
@@ -294,11 +385,16 @@ exports.sendProductInfo = async (req, res) => {
     `;
 
     /*
+     * ----------------------------------------
      * Send email
+     * ----------------------------------------
      */
+
     await sendEmail({
       email:
-        email.trim().toLowerCase(),
+        email
+          .trim()
+          .toLowerCase(),
 
       subject:
         `Product Information: ${product.name}`,

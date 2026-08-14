@@ -24,6 +24,7 @@ import {
   FaStar,
   FaTimes,
   FaTrash,
+  FaTruck,
 } from "react-icons/fa";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
@@ -55,7 +56,11 @@ const getImageUrl = (image) => {
 const normalizeProduct = (payload) =>
   payload?.product || payload || null;
 
-
+const normalizeProducts = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.products)) return payload.products;
+  return [];
+};
 
 const normalizeOptions = (payload) => {
   if (Array.isArray(payload)) return payload;
@@ -99,6 +104,22 @@ const SectionCard = ({ title, description, icon: Icon, children, action }) => (
   </section>
 );
 
+const DELIVERY_REGIONS = [
+  "Punjab",
+  "Sindh",
+  "Khyber Pakhtunkhwa",
+  "Balochistan",
+  "Gilgit-Baltistan",
+  "Islamabad Capital Territory",
+];
+
+const createEmptyDeliveryRates = () =>
+  DELIVERY_REGIONS.map((region) => ({
+    region,
+    charge: "",
+    isAvailable: true,
+  }));
+
 const AdminProductForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -126,6 +147,12 @@ const AdminProductForm = () => {
 
   const [options, setOptions] = useState([]);
   const [variants, setVariants] = useState([]);
+
+  const [deliveryRates, setDeliveryRates] = useState(
+    createEmptyDeliveryRates
+  );
+  const [deliveryConfigured, setDeliveryConfigured] =
+    useState(false);
 
   const [loadingPage, setLoadingPage] = useState(isEditMode);
   const [savingProduct, setSavingProduct] = useState(false);
@@ -181,30 +208,157 @@ const AdminProductForm = () => {
     }, 3500);
   };
 
- const fetchCategories = async () => {
-  try {
-    const response = await axios.get(
-      `${API_BASE_URL}/categories`
-    );
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/products`, {
+        params: { limit: 100 },
+      });
 
-    const categoryList =
-      Array.isArray(
-        response.data?.categories
-      )
-        ? response.data.categories
+      const productList = normalizeProducts(response.data);
+      const categoryMap = new Map();
+
+      productList.forEach((product) => {
+        const category = product.category;
+
+        if (!category) return;
+
+        if (typeof category === "object" && category._id) {
+          categoryMap.set(category._id, {
+            _id: category._id,
+            name: category.name || "Unnamed category",
+            slug: category.slug || "",
+          });
+        }
+      });
+
+      setCategories(
+        [...categoryMap.values()].sort((a, b) =>
+          a.name.localeCompare(b.name)
+        )
+      );
+    } catch (error) {
+      console.warn("Could not load categories:", error);
+    }
+  };
+
+  const fetchDeliveryRates = async (targetProductId) => {
+    if (!targetProductId) return;
+
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/products/admin/${targetProductId}/delivery-rates`,
+        {
+          headers: authHeaders,
+        }
+      );
+
+      const configured = Boolean(response.data?.configured);
+      const incomingRates = Array.isArray(response.data?.rates)
+        ? response.data.rates
         : [];
 
-    setCategories(categoryList);
-  } catch (error) {
-    console.error(
-      "Could not load categories:",
-      error
+      setDeliveryConfigured(configured);
+
+      if (!configured) {
+        setDeliveryRates(createEmptyDeliveryRates());
+        return;
+      }
+
+      setDeliveryRates(
+        DELIVERY_REGIONS.map((region) => {
+          const existing = incomingRates.find(
+            (rate) => rate.region === region
+          );
+
+          return {
+            region,
+            charge:
+              existing?.charge !== undefined &&
+              existing?.charge !== null
+                ? String(existing.charge)
+                : "",
+            isAvailable: existing?.isAvailable !== false,
+          };
+        })
+      );
+    } catch (error) {
+      console.error("Delivery rates loading error:", error);
+      setDeliveryConfigured(false);
+      setDeliveryRates(createEmptyDeliveryRates());
+
+      showNotice(
+        "error",
+        error.response?.data?.message ||
+          "Could not load delivery charges for this product."
+      );
+    }
+  };
+
+  const updateDeliveryRate = (index, field, value) => {
+    setDeliveryRates((current) =>
+      current.map((rate, rateIndex) =>
+        rateIndex === index
+          ? {
+              ...rate,
+              [field]: value,
+            }
+          : rate
+      )
     );
 
-    setCategories([]);
-  }
-};
- 
+    if (errors.delivery) {
+      setErrors((current) => ({
+        ...current,
+        delivery: "",
+      }));
+    }
+  };
+
+  const getDeliveryPayload = () => ({
+    rates: deliveryRates.map((rate) => ({
+      region: rate.region,
+      charge: rate.isAvailable ? Number(rate.charge) : 0,
+      isAvailable: Boolean(rate.isAvailable),
+    })),
+  });
+
+  const saveDeliveryRatesForProduct = async (targetProductId) => {
+    const response = await axios.put(
+      `${API_BASE_URL}/products/${targetProductId}/delivery-rates`,
+      getDeliveryPayload(),
+      {
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const savedRates = response.data?.delivery?.rates;
+
+    if (Array.isArray(savedRates)) {
+      setDeliveryRates(
+        DELIVERY_REGIONS.map((region) => {
+          const savedRate = savedRates.find(
+            (rate) => rate.region === region
+          );
+
+          return {
+            region,
+            charge:
+              savedRate?.isAvailable === false
+                ? ""
+                : String(savedRate?.charge ?? ""),
+            isAvailable: savedRate?.isAvailable !== false,
+          };
+        })
+      );
+    }
+
+    setDeliveryConfigured(true);
+    return response;
+  };
+
   const fetchProductWorkspace = async (targetProductId) => {
     try {
       setLoadingPage(true);
@@ -239,7 +393,10 @@ const AdminProductForm = () => {
         Array.isArray(product.images) ? product.images : []
       );
 
-      await fetchCommerceData(product._id);
+      await Promise.all([
+        fetchCommerceData(product._id),
+        fetchDeliveryRates(product._id),
+      ]);
     } catch (error) {
       console.error("Product workspace error:", error);
 
@@ -360,6 +517,18 @@ const AdminProductForm = () => {
         "Add at least one product image before creating the product.";
     }
 
+    const invalidDeliveryRate = deliveryRates.find(
+      (rate) =>
+        rate.isAvailable &&
+        (!Number.isFinite(Number(rate.charge)) ||
+          Number(rate.charge) <= 0)
+    );
+
+    if (invalidDeliveryRate) {
+      nextErrors.delivery =
+        `Enter a delivery charge greater than 0 for ${invalidDeliveryRate.region}.`;
+    }
+
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -436,11 +605,35 @@ const AdminProductForm = () => {
       setNewImages([]);
       setNewImagePreviews([]);
 
+      try {
+        await saveDeliveryRatesForProduct(savedId);
+      } catch (deliveryError) {
+        console.error("Save delivery rates error:", deliveryError);
+
+        if (!targetId) {
+          navigate(`/admin/products/edit/${savedId}`, {
+            replace: true,
+          });
+        }
+
+        setErrors({
+          product:
+            "The product was saved, but its delivery charges could not be saved. Please check the charges and click Save product again.",
+        });
+
+        showNotice(
+          "error",
+          deliveryError.response?.data?.message ||
+            "Product saved, but delivery charges failed to save."
+        );
+        return;
+      }
+
       showNotice(
         "success",
         targetId
-          ? "Product details updated."
-          : "Product created. You can now add options and variants."
+          ? "Product and delivery charges updated."
+          : "Product and delivery charges created. You can now add options and variants."
       );
 
       if (!targetId) {
@@ -1290,6 +1483,123 @@ const AdminProductForm = () => {
                     />
                   </label>
                 </SectionCard>
+
+                <SectionCard
+                  title="Delivery charges"
+                  description="Set the delivery fee for this product in each supported region. These charges are saved separately and linked to this product."
+                  icon={FaTruck}
+                  action={
+                    deliveryConfigured ? (
+                      <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-emerald-700">
+                        Saved
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-amber-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-700">
+                        Required
+                      </span>
+                    )
+                  }
+                >
+                  {errors.delivery && (
+                    <div className="mb-5 flex gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm leading-5 text-red-700">
+                      <FaExclamationTriangle className="mt-0.5 shrink-0" />
+                      {errors.delivery}
+                    </div>
+                  )}
+
+                  <div className="mb-5 rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+                    <div className="flex gap-3">
+                      <FaTruck className="mt-0.5 shrink-0 text-violet-600" />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          Product-specific delivery pricing
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          Enter the amount customers should pay to receive this
+                          product in each region. Save product will save both the
+                          product and these delivery charges.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {deliveryRates.map((rate, index) => (
+                      <div
+                        key={rate.region}
+                        className={`rounded-[24px] border p-5 transition ${
+                          rate.isAvailable
+                            ? "border-slate-200 bg-white"
+                            : "border-slate-200 bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {rate.region}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {rate.isAvailable
+                                ? "Delivery available"
+                                : "Delivery unavailable"}
+                            </p>
+                          </div>
+
+                          <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-500">
+                            <input
+                              type="checkbox"
+                              checked={rate.isAvailable}
+                              onChange={(event) =>
+                                updateDeliveryRate(
+                                  index,
+                                  "isAvailable",
+                                  event.target.checked
+                                )
+                              }
+                              className="h-4 w-4 rounded border-slate-300 text-violet-600"
+                            />
+                            Available
+                          </label>
+                        </div>
+
+                        <div className="mt-5">
+                          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">
+                            Delivery charge
+                          </label>
+
+                          <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">
+                              PKR
+                            </span>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              disabled={!rate.isAvailable}
+                              value={rate.charge}
+                              onChange={(event) =>
+                                updateDeliveryRate(
+                                  index,
+                                  "charge",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="e.g. 250"
+                              className={`${fieldClass(
+                                Boolean(errors.delivery && rate.isAvailable)
+                              )} pl-14 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="mt-5 text-xs leading-5 text-slate-400">
+                    These values are not stored inside the Product document. The
+                    backend saves them in ProductDeliveryRate using the product ID.
+                  </p>
+                </SectionCard>
               </div>
 
               <aside className="space-y-6 lg:sticky lg:top-36">
@@ -1347,11 +1657,15 @@ const AdminProductForm = () => {
                         done: Boolean(productId),
                       },
                       {
-                        label: "2. Options",
+                        label: "2. Delivery charges",
+                        done: deliveryConfigured,
+                      },
+                      {
+                        label: "3. Options",
                         done: productStats.options > 0,
                       },
                       {
-                        label: "3. Variants & inventory",
+                        label: "4. Variants & inventory",
                         done: productStats.variants > 0,
                       },
                     ].map((step) => (
@@ -1404,7 +1718,7 @@ const AdminProductForm = () => {
                   </button>
 
                   <p className="mt-3 text-center text-[10px] leading-4 text-white/35">
-                    Price and stock are configured on variants, not on the product itself.
+                    Product details and delivery charges are saved together. Price and stock are configured on variants.
                   </p>
                 </div>
               </aside>

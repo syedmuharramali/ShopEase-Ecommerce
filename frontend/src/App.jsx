@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -11,12 +10,17 @@ import { store } from "./store.js";
 
 import Navbar from "./components/Navbar.jsx";
 import Footer from "./components/Footer.jsx";
+import { StoreProvider } from "./context/storeContext.jsx";
 
 import HomePage from "./pages/Home.jsx";
 import ProductsPage from "./pages/ProductsPage.jsx";
 import ProductDetail from "./pages/ProductDetail.jsx";
 import OrderPage from "./pages/OrderPage.jsx";
 import ContactUs from "./pages/ContactUs.jsx";
+import CartPage from "./pages/CartPage.jsx";
+import WishlistPage from "./pages/WishlistPage.jsx";
+import CartCheckoutPage from "./pages/CartCheckoutPage.jsx";
+import TrackOrderPage from "./pages/TrackOrderPage.jsx";
 
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
@@ -39,6 +43,10 @@ const AppShell = () => {
           <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="/product/order/:id" element={<OrderPage />} />
           <Route path="/contact" element={<ContactUs />} />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
+          <Route path="/checkout/cart" element={<CartCheckoutPage />} />
+          <Route path="/track-order" element={<TrackOrderPage />} />
 
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -63,9 +71,11 @@ const AppShell = () => {
 const App = () => {
   return (
     <Provider store={store}>
-      <Router>
-        <AppShell />
-      </Router>
+      <StoreProvider>
+        <Router>
+          <AppShell />
+        </Router>
+      </StoreProvider>
     </Provider>
   );
 };

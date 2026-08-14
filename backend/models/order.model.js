@@ -1,183 +1,113 @@
 const mongoose = require("mongoose");
 
+const selectedOptionSnapshotSchema = new mongoose.Schema(
+  {
+    optionId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    optionName: { type: String, required: true, trim: true },
+    valueId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    value: { type: String, required: true, trim: true },
+  },
+  { _id: false }
+);
+
+const variantSnapshotSchema = new mongoose.Schema(
+  {
+    sku: { type: String, required: true, trim: true },
+    title: { type: String, default: "", trim: true },
+    price: { type: Number, required: true, min: 0 },
+    selectedOptions: { type: [selectedOptionSnapshotSchema], default: [] },
+  },
+  { _id: false }
+);
+
+const productSnapshotSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    image: { type: String, default: "", trim: true },
+  },
+  { _id: false }
+);
+
+const orderItemSchema = new mongoose.Schema(
+  {
+    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true, index: true },
+    variant: { type: mongoose.Schema.Types.ObjectId, ref: "ProductVariant", required: true, index: true },
+    productSnapshot: { type: productSnapshotSchema, required: true },
+    variantSnapshot: { type: variantSnapshotSchema, required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    subtotal: { type: Number, required: true, min: 0 },
+    deliveryCharge: { type: Number, required: true, min: 0, default: 0 },
+    total: { type: Number, required: true, min: 0 },
+  },
+  { _id: true }
+);
+
 const orderSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: [true, "Name is required"],
-      trim: true,
-    },
+    orderNumber: { type: String, unique: true, sparse: true, index: true },
+    name: { type: String, required: [true, "Name is required"], trim: true, maxlength: 120 },
+    email: { type: String, required: true, trim: true, lowercase: true, match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"] },
+    phoneNumber: { type: String, required: true, match: [/^\d{10,15}$/, "Please enter a valid phone number"] },
 
-    product: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
-      index: true,
-    },
+    // Legacy/single-item fields. Kept for backward compatibility and Buy Now.
+    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", index: true },
+    variant: { type: mongoose.Schema.Types.ObjectId, ref: "ProductVariant", index: true },
+    variantSnapshot: { type: variantSnapshotSchema },
+    quantity: { type: Number, min: 1, default: 1 },
 
-    variant: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "ProductVariant",
-      required: true,
-      index: true,
-    },
+    // New cart-safe structure. New single-item orders also write one item here.
+    items: { type: [orderItemSchema], default: [] },
 
-    // Snapshot of the variant at the time of purchase.
-    // This protects historical orders if the product/variant
-    // is changed later.
-    variantSnapshot: {
-      sku: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-
-      title: {
-        type: String,
-        default: "",
-        trim: true,
-      },
-
-      price: {
-        type: Number,
-        required: true,
-        min: 0,
-      },
-
-      selectedOptions: {
-        type: [
-          {
-            optionId: mongoose.Schema.Types.ObjectId,
-            optionName: String,
-            valueId: mongoose.Schema.Types.ObjectId,
-            value: String,
-          },
-        ],
-        default: [],
-      },
-    },
-
-    quantity: {
-      type: Number,
-      required: true,
-      min: 1,
-      default: 1,
-    },
-
-    subtotal: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-
-    email: {
-      type: String,
-      required: true,
-      trim: true,
-      lowercase: true,
-      match: [
-        /^\S+@\S+\.\S+$/,
-        "Please enter a valid email",
-      ],
-    },
-
-    phoneNumber: {
-      type: String,
-      required: true,
-      match: [
-        /^\d{10,15}$/,
-        "Please enter a valid phone number",
-      ],
-    },
+    subtotal: { type: Number, required: true, min: 0 },
+    deliveryCharge: { type: Number, required: true, min: 0, default: 0 },
+    total: { type: Number, required: true, min: 0, default: 0 },
 
     province: {
       type: String,
       required: true,
       enum: [
         "Punjab",
-        "KPK",
         "Sindh",
+        "Khyber Pakhtunkhwa",
         "Balochistan",
+        "Gilgit-Baltistan",
+        "Islamabad Capital Territory",
+        "KPK",
         "AJK",
         "Gilgit Baltistan",
       ],
     },
-
-    city: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    address: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    postalCode: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    paymentMethod: {
-      type: String,
-      enum: ["cod", "card"],
-      default: "cod",
-      required: true,
-    },
-
+    city: { type: String, required: true, trim: true },
+    address: { type: String, required: true, trim: true },
+    postalCode: { type: String, required: true, trim: true },
+    paymentMethod: { type: String, enum: ["cod", "card"], default: "cod", required: true },
     status: {
       type: String,
-      enum: [
-        "pending",
-        "confirmed",
-        "processing",
-        "shipped",
-        "delivered",
-        "cancelled",
-      ],
+      enum: ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"],
       default: "pending",
       index: true,
     },
-
-    orderNumber: {
-      type: String,
-      unique: true,
-      sparse: true,
-    },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// Generate order number before saving.
-orderSchema.pre("save", function (next) {
-  if (!this.orderNumber) {
-    const date = new Date();
+orderSchema.pre("validate", function () {
+  const hasItems = Array.isArray(this.items) && this.items.length > 0;
+  const hasLegacySingle = this.product && this.variant && this.variantSnapshot;
 
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-
-    const random = Math.floor(
-      Math.random() * 10000
-    )
-      .toString()
-      .padStart(4, "0");
-
-    this.orderNumber =
-      `ORD-${year}${month}${day}-${random}`;
+  if (!hasItems && !hasLegacySingle) {
+    this.invalidate("items", "Order must contain at least one product item");
   }
-
-  
 });
 
-const Order = mongoose.model(
-  "Order",
-  orderSchema
-);
+orderSchema.pre("save", function () {
+  if (this.orderNumber) return;
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const uniquePart = `${Date.now().toString().slice(-7)}${Math.floor(100 + Math.random() * 900)}`;
+  this.orderNumber = `ORD-${year}${month}${day}-${uniquePart}`;
+});
 
-module.exports = Order;
+module.exports = mongoose.model("Order", orderSchema);

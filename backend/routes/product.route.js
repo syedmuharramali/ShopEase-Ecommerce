@@ -7,6 +7,8 @@ const {
   createProduct,
   updateProduct,
   deleteProduct,
+  getAdminProducts,
+  getAdminProductById
 } = require("../controllers/product.controller");
 
 const {
@@ -26,7 +28,19 @@ router.get(
   "/slug/:slug",
   getProductBySlug
 );
+router.get(
+  "/admin/catalog",
+  protect,
+  admin,
+  getAdminProducts
+);
 
+router.get(
+  "/admin/:id",
+  protect,
+  admin,
+  getAdminProductById
+);
 router.get(
   "/:id",
   getProductById

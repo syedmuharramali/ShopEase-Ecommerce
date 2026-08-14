@@ -8,33 +8,95 @@ function isValidObjectId(id) {
   return mongoose.Types.ObjectId.isValid(id);
 }
 
-/*
- * ----------------------------------------
- * Validate selected options
- * ----------------------------------------
- *
- * This is shared by create + update.
- *
- * It verifies:
- *
- * 1. selectedOptions is an array
- * 2. optionId/valueId are valid ObjectIds
- * 3. option belongs to the product
- * 4. value belongs to the option
- * 5. same option isn't selected twice
- */
-async function validateSelectedOptions(
-  productId,
-  selectedOptions
-) {
+function parseBoolean(value, fallback) {
+  if (value === true || value === "true") return true;
+  if (value === false || value === "false") return false;
+  return fallback;
+}
+
+function buildCombinationKey(selectedOptions = []) {
+  if (!selectedOptions.length) {
+    return "DEFAULT";
+  }
+
+  return selectedOptions
+    .map(
+      (selected) =>
+        `${selected.optionId.toString()}:${selected.valueId.toString()}`
+    )
+    .sort()
+    .join("|");
+}
+
+async function validateSelectedOptions(productId, selectedOptions) {
   if (!Array.isArray(selectedOptions)) {
     return {
-      error: "selectedOptions must be an array",
+      valid: false,
+      status: 400,
+      message: "selectedOptions must be an array",
     };
   }
 
-  const validatedOptions = [];
-  const optionIds = new Set();
+  const activeOptions = await ProductOption.find({
+    product: productId,
+    isActive: true,
+  })
+    .sort({
+      position: 1,
+      createdAt: 1,
+    })
+    .lean();
+
+  /*
+   * A product with no active options uses one default variant
+   * with an empty selectedOptions array.
+   */
+  if (!activeOptions.length) {
+    if (selectedOptions.length) {
+      return {
+        valid: false,
+        status: 400,
+        message:
+          "This product has no active options, so selectedOptions must be empty",
+      };
+    }
+
+    return {
+      valid: true,
+      options: [],
+    };
+  }
+
+  /*
+   * Every active option must have at least one active value.
+   */
+  for (const option of activeOptions) {
+    const activeValues = (option.values || []).filter(
+      (value) => value.isActive !== false
+    );
+
+    if (!activeValues.length) {
+      return {
+        valid: false,
+        status: 409,
+        message: `Option "${option.name}" has no active values`,
+      };
+    }
+  }
+
+  /*
+   * A real variant must represent one value from every active option.
+   */
+  if (selectedOptions.length !== activeOptions.length) {
+    return {
+      valid: false,
+      status: 400,
+      message:
+        "A variant must choose exactly one value for every active product option",
+    };
+  }
+
+  const submittedByOption = new Map();
 
   for (const selected of selectedOptions) {
     if (
@@ -43,7 +105,9 @@ async function validateSelectedOptions(
       !selected.valueId
     ) {
       return {
-        error:
+        valid: false,
+        status: 400,
+        message:
           "Each selected option requires optionId and valueId",
       };
     }
@@ -53,47 +117,66 @@ async function validateSelectedOptions(
       !isValidObjectId(selected.valueId)
     ) {
       return {
-        error:
-          "Invalid optionId or valueId",
+        valid: false,
+        status: 400,
+        message: "Invalid optionId or valueId",
       };
     }
 
-    const optionId =
-      selected.optionId.toString();
+    const optionId = selected.optionId.toString();
 
-    /*
-     * Don't allow the same option twice.
-     */
-    if (optionIds.has(optionId)) {
+    if (submittedByOption.has(optionId)) {
       return {
-        error:
+        valid: false,
+        status: 400,
+        message:
           "A variant cannot contain the same option more than once",
       };
     }
 
-    optionIds.add(optionId);
+    submittedByOption.set(optionId, selected.valueId.toString());
+  }
 
-    const option =
-      await ProductOption.findOne({
-        _id: selected.optionId,
-        product: productId,
-        isActive: true,
-      });
+  const activeOptionIds = new Set(
+    activeOptions.map((option) => option._id.toString())
+  );
 
-    if (!option) {
+  for (const optionId of submittedByOption.keys()) {
+    if (!activeOptionIds.has(optionId)) {
       return {
-        error:
-          "Selected option does not belong to this product",
+        valid: false,
+        status: 400,
+        message:
+          "Selected option does not belong to this product or is inactive",
+      };
+    }
+  }
+
+  const validatedOptions = [];
+
+  for (const option of activeOptions) {
+    const optionId = option._id.toString();
+    const valueId = submittedByOption.get(optionId);
+
+    if (!valueId) {
+      return {
+        valid: false,
+        status: 400,
+        message: `Choose a value for "${option.name}"`,
       };
     }
 
-    const optionValue =
-      option.values.id(selected.valueId);
+    const optionValue = (option.values || []).find(
+      (value) =>
+        value._id.toString() === valueId &&
+        value.isActive !== false
+    );
 
     if (!optionValue) {
       return {
-        error:
-          `Value does not belong to option "${option.name}"`,
+        valid: false,
+        status: 400,
+        message: `Selected value for "${option.name}" is invalid or inactive`,
       };
     }
 
@@ -106,19 +189,75 @@ async function validateSelectedOptions(
   }
 
   return {
-    validatedOptions,
+    valid: true,
+    options: validatedOptions,
   };
 }
 
+async function findDuplicateCombination(
+  productId,
+  selectedOptions,
+  excludeVariantId = null
+) {
+  const targetKey =
+    buildCombinationKey(selectedOptions);
+
+  const filter = {
+    product: productId,
+  };
+
+  if (excludeVariantId) {
+    filter._id = {
+      $ne: excludeVariantId,
+    };
+  }
+
+  const variants =
+    await ProductVariant.find(filter)
+      .select(
+        "_id sku selectedOptions isActive"
+      )
+      .lean();
+
+  return (
+    variants.find(
+      (variant) =>
+        buildCombinationKey(
+          variant.selectedOptions || []
+        ) === targetKey
+    ) || null
+  );
+}
+
+function duplicateKeyResponse(res, error) {
+  if (error?.code !== 11000) {
+    return false;
+  }
+
+  const field =
+    Object.keys(error.keyPattern || {})[0] ||
+    Object.keys(error.keyValue || {})[0] ||
+    "";
+
+  const message =
+    field === "sku"
+      ? "SKU already exists"
+      : "This option combination already exists for this product";
+
+  res.status(409).json({
+    message,
+  });
+
+  return true;
+}
+
 /*
- * ----------------------------------------
- * Create Variant
- * ----------------------------------------
- *
- * POST
- * /api/products/:productId/variants
+ * POST /api/products/:productId/variants
  */
-const createProductVariant = async (req, res) => {
+const createProductVariant = async (
+  req,
+  res
+) => {
   try {
     const { productId } = req.params;
 
@@ -134,41 +273,22 @@ const createProductVariant = async (req, res) => {
       isActive = true,
     } = req.body;
 
-    /*
-     * ----------------------------------------
-     * Validate product ID
-     * ----------------------------------------
-     */
-
     if (!isValidObjectId(productId)) {
       return res.status(400).json({
         message: "Invalid product ID",
       });
     }
 
-    /*
-     * ----------------------------------------
-     * Validate product
-     * ----------------------------------------
-     */
-
-    const product = await Product.findById(
-      productId
-    )
-      .select("_id")
-      .lean();
+    const product =
+      await Product.findById(productId)
+        .select("_id")
+        .lean();
 
     if (!product) {
       return res.status(404).json({
         message: "Product not found",
       });
     }
-
-    /*
-     * ----------------------------------------
-     * Validate SKU
-     * ----------------------------------------
-     */
 
     if (
       typeof sku !== "string" ||
@@ -182,11 +302,18 @@ const createProductVariant = async (req, res) => {
     const normalizedSku =
       sku.trim().toUpperCase();
 
-    /*
-     * ----------------------------------------
-     * Validate title
-     * ----------------------------------------
-     */
+    const existingSku =
+      await ProductVariant.findOne({
+        sku: normalizedSku,
+      })
+        .select("_id")
+        .lean();
+
+    if (existingSku) {
+      return res.status(409).json({
+        message: "SKU already exists",
+      });
+    }
 
     if (
       typeof title !== "string"
@@ -195,12 +322,6 @@ const createProductVariant = async (req, res) => {
         message: "Title must be a string",
       });
     }
-
-    /*
-     * ----------------------------------------
-     * Validate price
-     * ----------------------------------------
-     */
 
     if (
       typeof price !== "number" ||
@@ -213,12 +334,6 @@ const createProductVariant = async (req, res) => {
       });
     }
 
-    /*
-     * ----------------------------------------
-     * Validate stock
-     * ----------------------------------------
-     */
-
     if (
       typeof stock !== "number" ||
       !Number.isInteger(stock) ||
@@ -229,12 +344,6 @@ const createProductVariant = async (req, res) => {
           "Stock must be a non-negative integer",
       });
     }
-
-    /*
-     * ----------------------------------------
-     * Validate compare-at price
-     * ----------------------------------------
-     */
 
     if (
       compareAtPrice !== null &&
@@ -250,42 +359,11 @@ const createProductVariant = async (req, res) => {
       });
     }
 
-    /*
-     * ----------------------------------------
-     * Validate images
-     * ----------------------------------------
-     */
-
     if (!Array.isArray(images)) {
       return res.status(400).json({
         message: "Images must be an array",
       });
     }
-
-    /*
-     * ----------------------------------------
-     * Check SKU uniqueness
-     * ----------------------------------------
-     */
-
-    const existingSku =
-      await ProductVariant.findOne({
-        sku: normalizedSku,
-      })
-        .select("_id")
-        .lean();
-
-    if (existingSku) {
-      return res.status(409).json({
-        message: "SKU already exists",
-      });
-    }
-
-    /*
-     * ----------------------------------------
-     * Validate selected options
-     * ----------------------------------------
-     */
 
     const optionValidation =
       await validateSelectedOptions(
@@ -293,132 +371,75 @@ const createProductVariant = async (req, res) => {
         selectedOptions
       );
 
-    if (optionValidation.error) {
-      return res.status(400).json({
-        message: optionValidation.error,
-      });
+    if (!optionValidation.valid) {
+      return res
+        .status(optionValidation.status)
+        .json({
+          message: optionValidation.message,
+        });
     }
 
     const validatedOptions =
-      optionValidation.validatedOptions;
+      optionValidation.options;
 
-    /*
-     * ----------------------------------------
-     * Default variant
-     * ----------------------------------------
-     */
+    const duplicateCombination =
+      await findDuplicateCombination(
+        productId,
+        validatedOptions
+      );
 
-    const variantCount =
+    if (duplicateCombination) {
+      return res.status(409).json({
+        message:
+          "This option combination already exists for this product",
+      });
+    }
+
+    const requestedActive =
+      parseBoolean(isActive, true);
+
+    const activeVariantCount =
       await ProductVariant.countDocuments({
         product: productId,
+        isActive: true,
       });
 
     const shouldBeDefault =
-      variantCount === 0
+      activeVariantCount === 0
         ? true
-        : Boolean(isDefault);
-
-    /*
-     * ----------------------------------------
-     * Create variant
-     *
-     * combinationKey is generated by the
-     * ProductVariant schema.
-     * ----------------------------------------
-     */
-
-    let variant;
-
-    try {
-      variant =
-        await ProductVariant.create({
-          product: productId,
-
-          sku: normalizedSku,
-
-          title: title.trim(),
-
-          selectedOptions:
-            validatedOptions,
-
-          price,
-
-          compareAtPrice,
-
-          stock,
-
-          images,
-
-          isDefault: shouldBeDefault,
-
-          isActive: Boolean(isActive),
-        });
-    } catch (error) {
-      /*
-       * MongoDB duplicate key.
-       *
-       * This can happen for:
-       *
-       * - duplicate SKU
-       * - duplicate product + combinationKey
-       * - duplicate default variant
-       */
-
-      if (error.code === 11000) {
-        const duplicateFields =
-          Object.keys(
-            error.keyPattern || {}
+        : parseBoolean(
+            isDefault,
+            false
           );
 
-        if (
-          duplicateFields.includes("sku")
-        ) {
-          return res.status(409).json({
-            message: "SKU already exists",
-          });
-        }
-
-        if (
-          duplicateFields.includes(
-            "combinationKey"
-          )
-        ) {
-          return res.status(409).json({
-            message:
-              "A variant with the same option combination already exists",
-          });
-        }
-
-        if (
-          duplicateFields.includes(
-            "isDefault"
-          )
-        ) {
-          return res.status(409).json({
-            message:
-              "This product already has a default variant",
-          });
-        }
-
-        return res.status(409).json({
-          message:
-            "Duplicate variant data",
-        });
-      }
-
-      throw error;
+    if (
+      shouldBeDefault &&
+      !requestedActive
+    ) {
+      return res.status(400).json({
+        message:
+          "The default variant must be active",
+      });
     }
 
     /*
-     * ----------------------------------------
-     * If this variant is default,
-     * remove default from all other variants.
-     *
-     * We do this AFTER successful creation so
-     * a failed variant creation doesn't destroy
-     * the existing default.
-     * ----------------------------------------
+     * Create first with isDefault false.
+     * This avoids removing the existing default if creation fails.
      */
+    const variant =
+      await ProductVariant.create({
+        product: productId,
+        sku: normalizedSku,
+        title: title.trim(),
+        selectedOptions:
+          validatedOptions,
+        price,
+        compareAtPrice,
+        stock,
+        images,
+        isDefault: false,
+        isActive: requestedActive,
+      });
 
     if (shouldBeDefault) {
       await ProductVariant.updateMany(
@@ -435,12 +456,14 @@ const createProductVariant = async (req, res) => {
           },
         }
       );
+
+      variant.isDefault = true;
+      await variant.save();
     }
 
     return res.status(201).json({
       message:
         "Product variant created successfully",
-
       variant,
     });
   } catch (error) {
@@ -449,21 +472,24 @@ const createProductVariant = async (req, res) => {
       error
     );
 
+    if (
+      duplicateKeyResponse(
+        res,
+        error
+      )
+    ) {
+      return;
+    }
+
     return res.status(500).json({
       message:
         "Failed to create product variant",
-      error: error.message,
     });
   }
 };
 
 /*
- * ----------------------------------------
- * Get Variants
- * ----------------------------------------
- *
- * GET
- * /api/products/:productId/variants
+ * GET /api/products/:productId/variants
  */
 const getProductVariants = async (
   req,
@@ -512,18 +538,12 @@ const getProductVariants = async (
     return res.status(500).json({
       message:
         "Failed to fetch product variants",
-      error: error.message,
     });
   }
 };
 
 /*
- * ----------------------------------------
- * Get Single Variant
- * ----------------------------------------
- *
- * GET
- * /api/products/:productId/variants/:variantId
+ * GET /api/products/:productId/variants/:variantId
  */
 const getProductVariant = async (
   req,
@@ -545,6 +565,9 @@ const getProductVariant = async (
       });
     }
 
+    /*
+     * This is a public endpoint, so do not expose archived variants.
+     */
     const variant =
       await ProductVariant.findOne({
         _id: variantId,
@@ -555,7 +578,7 @@ const getProductVariant = async (
     if (!variant) {
       return res.status(404).json({
         message:
-          "Product variant not found",
+          "Product variant not found or is inactive",
       });
     }
 
@@ -571,18 +594,12 @@ const getProductVariant = async (
     return res.status(500).json({
       message:
         "Failed to fetch product variant",
-      error: error.message,
     });
   }
 };
 
 /*
- * ----------------------------------------
- * Update Variant
- * ----------------------------------------
- *
- * PATCH
- * /api/products/:productId/variants/:variantId
+ * PATCH /api/products/:productId/variants/:variantId
  */
 const updateProductVariant = async (
   req,
@@ -629,12 +646,6 @@ const updateProductVariant = async (
       isActive,
     } = req.body;
 
-    /*
-     * ----------------------------------------
-     * SKU
-     * ----------------------------------------
-     */
-
     if (sku !== undefined) {
       if (
         typeof sku !== "string" ||
@@ -649,7 +660,7 @@ const updateProductVariant = async (
       const normalizedSku =
         sku.trim().toUpperCase();
 
-      const duplicate =
+      const duplicateSku =
         await ProductVariant.findOne({
           sku: normalizedSku,
           _id: {
@@ -659,7 +670,7 @@ const updateProductVariant = async (
           .select("_id")
           .lean();
 
-      if (duplicate) {
+      if (duplicateSku) {
         return res.status(409).json({
           message: "SKU already exists",
         });
@@ -668,12 +679,6 @@ const updateProductVariant = async (
       variant.sku =
         normalizedSku;
     }
-
-    /*
-     * ----------------------------------------
-     * Title
-     * ----------------------------------------
-     */
 
     if (title !== undefined) {
       if (
@@ -689,41 +694,45 @@ const updateProductVariant = async (
         title.trim();
     }
 
-    /*
-     * ----------------------------------------
-     * Selected options
-     * ----------------------------------------
-     *
-     * If selectedOptions is supplied,
-     * completely revalidate the combination.
-     * ----------------------------------------
-     */
-
-    if (
-      selectedOptions !== undefined
-    ) {
+    if (selectedOptions !== undefined) {
       const optionValidation =
         await validateSelectedOptions(
           productId,
           selectedOptions
         );
 
-      if (optionValidation.error) {
-        return res.status(400).json({
+      if (!optionValidation.valid) {
+        return res
+          .status(optionValidation.status)
+          .json({
+            message:
+              optionValidation.message,
+          });
+      }
+
+      const validatedOptions =
+        optionValidation.options;
+
+      const duplicateCombination =
+        await findDuplicateCombination(
+          productId,
+          validatedOptions,
+          variantId
+        );
+
+      if (duplicateCombination) {
+        return res.status(409).json({
           message:
-            optionValidation.error,
+            "This option combination already exists for this product",
         });
       }
 
+      /*
+       * Refresh optionName/value snapshots as well as IDs.
+       */
       variant.selectedOptions =
-        optionValidation.validatedOptions;
+        validatedOptions;
     }
-
-    /*
-     * ----------------------------------------
-     * Price
-     * ----------------------------------------
-     */
 
     if (price !== undefined) {
       if (
@@ -740,12 +749,6 @@ const updateProductVariant = async (
       variant.price = price;
     }
 
-    /*
-     * ----------------------------------------
-     * Compare-at price
-     * ----------------------------------------
-     */
-
     if (
       compareAtPrice !== undefined
     ) {
@@ -753,7 +756,9 @@ const updateProductVariant = async (
         compareAtPrice !== null &&
         (
           typeof compareAtPrice !== "number" ||
-          !Number.isFinite(compareAtPrice) ||
+          !Number.isFinite(
+            compareAtPrice
+          ) ||
           compareAtPrice < 0
         )
       ) {
@@ -766,12 +771,6 @@ const updateProductVariant = async (
       variant.compareAtPrice =
         compareAtPrice;
     }
-
-    /*
-     * ----------------------------------------
-     * Stock
-     * ----------------------------------------
-     */
 
     if (stock !== undefined) {
       if (
@@ -788,12 +787,6 @@ const updateProductVariant = async (
       variant.stock = stock;
     }
 
-    /*
-     * ----------------------------------------
-     * Images
-     * ----------------------------------------
-     */
-
     if (images !== undefined) {
       if (!Array.isArray(images)) {
         return res.status(400).json({
@@ -805,13 +798,65 @@ const updateProductVariant = async (
       variant.images = images;
     }
 
-    /*
-     * ----------------------------------------
-     * Default variant
-     * ----------------------------------------
-     */
+    const nextIsActive =
+      isActive === undefined
+        ? variant.isActive
+        : parseBoolean(
+            isActive,
+            variant.isActive
+          );
 
-    if (isDefault === true) {
+    const nextIsDefault =
+      isDefault === undefined
+        ? variant.isDefault
+        : parseBoolean(
+            isDefault,
+            variant.isDefault
+          );
+
+    if (
+      variant.isDefault &&
+      nextIsDefault === false
+    ) {
+      return res.status(400).json({
+        message:
+          "A product must have one default variant. Assign another default variant instead.",
+      });
+    }
+
+    if (
+      variant.isDefault &&
+      nextIsActive === false
+    ) {
+      return res.status(400).json({
+        message:
+          "The default variant cannot be deactivated. Assign another default variant first.",
+      });
+    }
+
+    if (
+      nextIsDefault &&
+      !nextIsActive
+    ) {
+      return res.status(400).json({
+        message:
+          "The default variant must be active",
+      });
+    }
+
+    variant.isActive =
+      nextIsActive;
+
+    variant.isDefault =
+      nextIsDefault;
+
+    /*
+     * Save the requested variant first. If it fails,
+     * the existing default remains untouched.
+     */
+    await variant.save();
+
+    if (nextIsDefault) {
       await ProductVariant.updateMany(
         {
           product: productId,
@@ -826,100 +871,11 @@ const updateProductVariant = async (
           },
         }
       );
-
-      variant.isDefault = true;
-    }
-
-    if (isDefault === false) {
-      /*
-       * Don't allow the product to end up
-       * without a default variant.
-       */
-
-      if (variant.isDefault) {
-        return res.status(400).json({
-          message:
-            "A product must have one default variant",
-        });
-      }
-
-      variant.isDefault = false;
-    }
-
-    /*
-     * ----------------------------------------
-     * Active state
-     * ----------------------------------------
-     */
-
-    if (isActive !== undefined) {
-      variant.isActive =
-        Boolean(isActive);
-    }
-
-    /*
-     * ----------------------------------------
-     * Save
-     *
-     * The schema pre('validate') hook
-     * regenerates combinationKey whenever
-     * selectedOptions changes.
-     * ----------------------------------------
-     */
-
-    try {
-      await variant.save();
-    } catch (error) {
-      if (error.code === 11000) {
-        const duplicateFields =
-          Object.keys(
-            error.keyPattern || {}
-          );
-
-        if (
-          duplicateFields.includes("sku")
-        ) {
-          return res.status(409).json({
-            message:
-              "SKU already exists",
-          });
-        }
-
-        if (
-          duplicateFields.includes(
-            "combinationKey"
-          )
-        ) {
-          return res.status(409).json({
-            message:
-              "A variant with the same option combination already exists",
-          });
-        }
-
-        if (
-          duplicateFields.includes(
-            "isDefault"
-          )
-        ) {
-          return res.status(409).json({
-            message:
-              "This product already has a default variant",
-          });
-        }
-
-        return res.status(409).json({
-          message:
-            "Duplicate variant data",
-        });
-      }
-
-      throw error;
     }
 
     return res.status(200).json({
       message:
         "Product variant updated successfully",
-
       variant,
     });
   } catch (error) {
@@ -928,23 +884,26 @@ const updateProductVariant = async (
       error
     );
 
+    if (
+      duplicateKeyResponse(
+        res,
+        error
+      )
+    ) {
+      return;
+    }
+
     return res.status(500).json({
       message:
         "Failed to update product variant",
-      error: error.message,
     });
   }
 };
 
 /*
- * ----------------------------------------
- * Delete Variant
- * ----------------------------------------
+ * DELETE /api/products/:productId/variants/:variantId
  *
  * Soft delete.
- *
- * DELETE
- * /api/products/:productId/variants/:variantId
  */
 const deleteProductVariant = async (
   req,
@@ -979,14 +938,10 @@ const deleteProductVariant = async (
       });
     }
 
-    /*
-     * Don't delete the default variant.
-     */
-
     if (variant.isDefault) {
       return res.status(400).json({
         message:
-          "Cannot delete the default variant. Assign another default variant first.",
+          "Cannot archive the default variant. Assign another default variant first.",
       });
     }
 
@@ -1007,7 +962,6 @@ const deleteProductVariant = async (
     return res.status(500).json({
       message:
         "Failed to archive product variant",
-      error: error.message,
     });
   }
 };

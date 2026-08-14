@@ -28,13 +28,13 @@ import {
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
 
-const provinces = [
+const DELIVERY_REGIONS = [
   "Punjab",
-  "KPK",
   "Sindh",
+  "Khyber Pakhtunkhwa",
   "Balochistan",
-  "AJK",
-  "Gilgit Baltistan",
+  "Gilgit-Baltistan",
+  "Islamabad Capital Territory",
 ];
 
 const fieldClass = (hasError = false) =>
@@ -89,6 +89,7 @@ const OrderPage = () => {
 
   const [product, setProduct] = useState(null);
   const [variant, setVariant] = useState(null);
+  const [deliveryRates, setDeliveryRates] = useState([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -127,12 +128,16 @@ const OrderPage = () => {
         setPageLoading(true);
         setLoadError("");
 
-        const [productResponse, variantResponse] = await Promise.all([
-          axios.get(`${API_BASE_URL}/products/${productId}`),
-          axios.get(
-            `${API_BASE_URL}/products/${productId}/variants/${variantId}`
-          ),
-        ]);
+        const [productResponse, variantResponse, deliveryResponse] =
+          await Promise.all([
+            axios.get(`${API_BASE_URL}/products/${productId}`),
+            axios.get(
+              `${API_BASE_URL}/products/${productId}/variants/${variantId}`
+            ),
+            axios.get(
+              `${API_BASE_URL}/products/${productId}/delivery-rates`
+            ),
+          ]);
 
         const productData =
           productResponse.data?.product || productResponse.data;
@@ -143,8 +148,33 @@ const OrderPage = () => {
           throw new Error("Unable to load the selected product.");
         }
 
+        const configured = deliveryResponse.data?.configured !== false;
+        const rawRates = Array.isArray(deliveryResponse.data?.rates)
+          ? deliveryResponse.data.rates
+          : Array.isArray(deliveryResponse.data?.delivery?.rates)
+            ? deliveryResponse.data.delivery.rates
+            : [];
+
+        const availableRates = rawRates.filter((rate) => {
+          const charge = Number(rate?.charge);
+
+          return (
+            DELIVERY_REGIONS.includes(rate?.region) &&
+            rate?.isAvailable !== false &&
+            Number.isFinite(charge) &&
+            charge > 0
+          );
+        });
+
+        if (!configured || availableRates.length === 0) {
+          throw new Error(
+            "Delivery is not configured for this product yet. Please contact the store before ordering."
+          );
+        }
+
         setProduct(productData);
         setVariant(variantData);
+        setDeliveryRates(availableRates);
 
         const safeQuantity = Math.max(
           1,
@@ -184,6 +214,20 @@ const OrderPage = () => {
     () => (Number(variant?.price) || 0) * Number(formData.quantity || 1),
     [variant?.price, formData.quantity]
   );
+
+  const selectedDeliveryRate = useMemo(
+    () =>
+      deliveryRates.find(
+        (rate) => rate.region === formData.province
+      ) || null,
+    [deliveryRates, formData.province]
+  );
+
+  const deliveryCharge = selectedDeliveryRate
+    ? Number(selectedDeliveryRate.charge) || 0
+    : 0;
+
+  const orderTotal = subtotal + deliveryCharge;
 
   const selectedOptions = variant?.selectedOptions || [];
   const isUnavailable =
@@ -266,7 +310,10 @@ const OrderPage = () => {
     }
 
     if (!formData.province) {
-      nextErrors.province = "Please select your province.";
+      nextErrors.province = "Please select your delivery province.";
+    } else if (!selectedDeliveryRate) {
+      nextErrors.province =
+        "Delivery is not available for this product in the selected province.";
     }
 
     if (!formData.city.trim()) {
@@ -309,21 +356,18 @@ const OrderPage = () => {
       setSubmitting(true);
       setErrors({});
 
-     const phoneNumber =
-  formData.phone.replace(/\D/g, "");
-
-const payload = {
-  variantId,
-  name: formData.name.trim(),
-  email: formData.email.trim().toLowerCase(),
-  phoneNumber,
-  province: formData.province,
-  city: formData.city.trim(),
-  address: formData.address.trim(),
-  postalCode: formData.postalCode.trim(),
-  paymentMethod: formData.paymentMethod,
-  quantity: Number(formData.quantity),
-};
+      const payload = {
+        variantId,
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phoneNumber: formData.phone.replace(/\D/g, ""),
+        province: formData.province,
+        city: formData.city.trim(),
+        address: formData.address.trim(),
+        postalCode: formData.postalCode.trim(),
+        paymentMethod: formData.paymentMethod,
+        quantity: Number(formData.quantity),
+      };
 
       const response = await axios.post(
         `${API_BASE_URL}/orders/create/${productId}`,
@@ -491,13 +535,46 @@ const payload = {
               </div>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+            <div className="mt-6 space-y-3 rounded-2xl bg-slate-50 p-5 text-sm">
+              <div className="flex items-center justify-between text-slate-500">
+                <span>Subtotal</span>
+                <span className="font-medium text-slate-800">
+                  {formatPrice(completedOrder.subtotal ?? subtotal)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-500">
+                <span>Delivery</span>
+                <span className="font-medium text-slate-800">
+                  {formatPrice(
+                    completedOrder.deliveryCharge ?? deliveryCharge
+                  )}
+                </span>
+              </div>
+              <div className="border-t border-slate-200 pt-3 flex items-center justify-between">
+                <span className="font-semibold text-slate-950">Total</span>
+                <span className="text-lg font-semibold text-slate-950">
+                  {formatPrice(completedOrder.total ?? orderTotal)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
               <Link
                 to="/products"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 <FaShoppingBag />
                 Continue shopping
+              </Link>
+
+              <Link
+                to={`/track-order?orderNumber=${encodeURIComponent(
+                  completedOrder.orderNumber || ""
+                )}`}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+              >
+                <FaTruck />
+                Track order
               </Link>
 
               <Link
@@ -664,12 +741,17 @@ const payload = {
                     className={fieldClass(Boolean(errors.province))}
                   >
                     <option value="">Select province</option>
-                    {provinces.map((province) => (
-                      <option key={province} value={province}>
-                        {province}
+                    {deliveryRates.map((rate) => (
+                      <option key={rate.region} value={rate.region}>
+                        {rate.region} — {formatPrice(rate.charge)}
                       </option>
                     ))}
                   </select>
+                  {selectedDeliveryRate && (
+                    <p className="mt-2 text-xs font-medium text-emerald-600">
+                      Delivery charge: {formatPrice(deliveryCharge)}
+                    </p>
+                  )}
                   {errors.province && (
                     <p className="mt-2 text-xs font-medium text-red-600">
                       {errors.province}
@@ -915,8 +997,16 @@ const payload = {
 
                   <div className="flex items-center justify-between text-slate-500">
                     <span>Delivery</span>
-                    <span className="font-medium text-emerald-600">
-                      Calculated on delivery
+                    <span
+                      className={`font-medium ${
+                        selectedDeliveryRate
+                          ? "text-slate-800"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      {selectedDeliveryRate
+                        ? formatPrice(deliveryCharge)
+                        : "Select province"}
                     </span>
                   </div>
                 </div>
@@ -929,11 +1019,11 @@ const payload = {
                       Order total
                     </p>
                     <p className="mt-0.5 text-xs text-slate-400">
-                      Product subtotal
+                      Includes product and delivery
                     </p>
                   </div>
                   <p className="text-2xl font-semibold tracking-tight text-slate-950">
-                    {formatPrice(subtotal)}
+                    {formatPrice(orderTotal)}
                   </p>
                 </div>
 
@@ -953,7 +1043,11 @@ const payload = {
                 <form onSubmit={handleSubmit}>
                   <button
                     type="submit"
-                    disabled={submitting || isUnavailable}
+                    disabled={
+                      submitting ||
+                      isUnavailable ||
+                      !selectedDeliveryRate
+                    }
                     className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:translate-y-0 disabled:bg-slate-300 disabled:shadow-none"
                   >
                     {submitting ? (
@@ -964,7 +1058,7 @@ const payload = {
                     ) : (
                       <>
                         <FaLock className="text-xs" />
-                        Place order · {formatPrice(subtotal)}
+                        Place order · {formatPrice(orderTotal)}
                       </>
                     )}
                   </button>
