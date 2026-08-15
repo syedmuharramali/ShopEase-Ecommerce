@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -11,6 +10,7 @@ import { store } from "./store.js";
 
 import Navbar from "./components/Navbar.jsx";
 import Footer from "./components/Footer.jsx";
+import AdminToolsBar from "./components/AdminToolsBar.jsx";
 import { StoreProvider } from "./context/storeContext.jsx";
 
 import HomePage from "./pages/Home.jsx";
@@ -32,16 +32,19 @@ import AdminProductForm from "./pages/AdminProductForm.jsx";
 import AdminReviewsPage from "./pages/AdminReviewsPage.jsx";
 import AdminCouponsPage from "./pages/AdminCouponsPage.jsx";
 import AdminAnalyticsPage from "./pages/AdminAnalyticsPage.jsx";
+import AdminMarkazPage from "./pages/AdminMarkazPage.jsx";
 
 import NotFound from "./pages/NotFound.jsx";
 
 const AppShell = () => {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith("/admin");
+  const showAdminTools = isAdminRoute && location.pathname !== "/admin/login";
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f7f7f5]">
       <Navbar />
+      {showAdminTools && <AdminToolsBar />}
 
       <div className="flex-1">
         <Routes>
@@ -68,6 +71,7 @@ const AppShell = () => {
           <Route path="/admin/reviews" element={<AdminReviewsPage />} />
           <Route path="/admin/coupons" element={<AdminCouponsPage />} />
           <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+          <Route path="/admin/markaz" element={<AdminMarkazPage />} />
           <Route
             path="/admin/products/new"
             element={<AdminProductForm />}
@@ -76,7 +80,6 @@ const AppShell = () => {
             path="/admin/products/edit/:id"
             element={<AdminProductForm />}
           />
-          <Route path="/developer" element={<DeveloperPage />} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>
