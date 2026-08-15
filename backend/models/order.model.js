@@ -219,6 +219,82 @@ orderSchema.pre("validate", function () {
   }
 });
 
+/*
+ * Freeze supplier economics at the moment the order is created. This keeps a
+ * historical Markaz SKU/cost/profit snapshot even if the catalog is edited
+ * later. The hook stays fail-safe: if supplier models are unavailable, normal
+ * ShopEase order creation still proceeds.
+ */
+orderSchema.pre("save", async function () {
+  if (!this.isNew || (this.supplierFulfillments || []).length > 0) return;
+  if (!mongoose.models.Product || !mongoose.models.ProductVariant) return;
+
+  const sourceItems =
+    Array.isArray(this.items) && this.items.length > 0
+      ? this.items
+      : this.product && this.variant
+        ? [
+            {
+              product: this.product,
+              variant: this.variant,
+              quantity: this.quantity || 1,
+            },
+          ]
+        : [];
+
+  if (!sourceItems.length) return;
+
+  try {
+    const Product = mongoose.model("Product");
+    const ProductVariant = mongoose.model("ProductVariant");
+
+    const productIds = [...new Set(sourceItems.map((item) => String(item.product)))];
+    const variantIds = [...new Set(sourceItems.map((item) => String(item.variant)))];
+
+    const [products, variants] = await Promise.all([
+      Product.find({ _id: { $in: productIds } })
+        .select("+supplier +supplierProductCode +fulfillmentType")
+        .lean(),
+      ProductVariant.find({ _id: { $in: variantIds } })
+        .select("+supplierSku +supplierCost +expectedProfit +inventoryType")
+        .lean(),
+    ]);
+
+    const productMap = new Map(products.map((product) => [String(product._id), product]));
+    const variantMap = new Map(variants.map((variant) => [String(variant._id), variant]));
+
+    this.supplierFulfillments = sourceItems
+      .map((item) => {
+        const product = productMap.get(String(item.product));
+        const variant = variantMap.get(String(item.variant));
+
+        if (!product || !variant || product.supplier !== "markaz") return null;
+
+        return {
+          product: item.product,
+          variant: item.variant,
+          provider: "markaz",
+          supplierProductCode: product.supplierProductCode || "",
+          supplierSku: variant.supplierSku || variant.sku || "",
+          supplierCost:
+            variant.supplierCost === null || variant.supplierCost === undefined
+              ? null
+              : Number(variant.supplierCost),
+          expectedProfit:
+            variant.expectedProfit === null || variant.expectedProfit === undefined
+              ? null
+              : Number(variant.expectedProfit),
+          quantity: Math.max(1, Number(item.quantity) || 1),
+          status: "not_submitted",
+          lastUpdatedAt: new Date(),
+        };
+      })
+      .filter(Boolean);
+  } catch (error) {
+    console.error("Supplier snapshot creation error:", error);
+  }
+});
+
 orderSchema.pre("save", function () {
   if (this.orderNumber) return;
   const now = new Date();
