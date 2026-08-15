@@ -5,7 +5,7 @@ const helmet = require("helmet");
 const {
   rateLimit,
 } = require("express-rate-limit");
-const path = require("path");
+
 
 require("dotenv").config();
 
@@ -21,6 +21,13 @@ const PORT =
  */
 
 app.disable("x-powered-by");
+
+/*
+ * Render runs the API behind a reverse proxy.
+ * Trust the first proxy so IP-based rate limiting
+ * sees the real client address.
+ */
+app.set("trust proxy", 1);
 
 /*
  * ----------------------------------------
@@ -128,21 +135,7 @@ app.use(
   })
 );
 
-/*
- * ----------------------------------------
- * Static Uploads
- * ----------------------------------------
- */
 
-app.use(
-  "/uploads",
-  express.static(
-    path.join(
-      __dirname,
-      "uploads"
-    )
-  )
-);
 
 /*
  * ----------------------------------------

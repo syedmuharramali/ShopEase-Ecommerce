@@ -1132,6 +1132,16 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
+    if (
+  previousStatus === "shipped" &&
+  status === "cancelled"
+) {
+  return res.status(400).json({
+    message:
+      "A shipped order cannot be cancelled",
+  });
+}
+
     /*
      * Prevent normal status movement backwards.
      * Cancellation is handled separately and can happen before delivery.

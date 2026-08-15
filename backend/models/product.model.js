@@ -8,6 +8,12 @@ const productImageSchema = new mongoose.Schema(
       trim: true,
     },
 
+    publicId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     alt: {
       type: String,
       trim: true,
@@ -114,21 +120,12 @@ const productSchema = new mongoose.Schema(
   }
 );
 
-/*
- * Useful for storefront queries such as:
- *
- * active products in a category
- * sorted by newest
- */
 productSchema.index({
   category: 1,
   status: 1,
   createdAt: -1,
 });
 
-/*
- * Useful for featured product queries.
- */
 productSchema.index({
   featured: 1,
   status: 1,

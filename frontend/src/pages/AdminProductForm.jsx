@@ -208,36 +208,31 @@ const AdminProductForm = () => {
     }, 3500);
   };
 
-  const fetchCategories = async () => {
+   const fetchCategories = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/products`, {
-        params: { limit: 100 },
-      });
+      const response = await axios.get(
+        `${API_BASE_URL}/categories`
+      );
 
-      const productList = normalizeProducts(response.data);
-      const categoryMap = new Map();
-
-      productList.forEach((product) => {
-        const category = product.category;
-
-        if (!category) return;
-
-        if (typeof category === "object" && category._id) {
-          categoryMap.set(category._id, {
-            _id: category._id,
-            name: category.name || "Unnamed category",
-            slug: category.slug || "",
-          });
-        }
-      });
+      const incomingCategories =
+        Array.isArray(response.data?.categories)
+          ? response.data.categories
+          : [];
 
       setCategories(
-        [...categoryMap.values()].sort((a, b) =>
-          a.name.localeCompare(b.name)
+        [...incomingCategories].sort((a, b) =>
+          String(a.name || "").localeCompare(
+            String(b.name || "")
+          )
         )
       );
     } catch (error) {
-      console.warn("Could not load categories:", error);
+      console.warn(
+        "Could not load categories:",
+        error
+      );
+
+      setCategories([]);
     }
   };
 

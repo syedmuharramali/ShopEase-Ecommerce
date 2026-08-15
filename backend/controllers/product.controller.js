@@ -3,22 +3,11 @@ const Category = require("../models/category.model");
 const ProductVariant = require(
   "../models/productVariant.model"
 );
-function filesToProductImages(
-  files,
-  productName,
-  startPosition = 0
-) {
-  return (files || []).map(
-    (file, index) => ({
-      url: `uploads/${file.filename}`,
+const {
+  uploadProductImages,
+  destroyCloudinaryImages,
+} = require("../utils/cloudinaryImages.js");
 
-      alt: productName || "",
-
-      position:
-        startPosition + index,
-    })
-  );
-}
 function slugify(value) {
   return value
     .toString()
@@ -776,6 +765,8 @@ const getProductBySlug = async (req, res) => {
  * POST /api/products
  */
 const createProduct = async (req, res) => {
+  let uploadedImages = [];
+
   try {
     const {
       name,
@@ -789,12 +780,6 @@ const createProduct = async (req, res) => {
       featured = false,
     } = req.body;
 
-    /*
-     * ----------------------------------------
-     * Basic validation
-     * ----------------------------------------
-     */
-
     if (!name || !name.trim()) {
       return res.status(400).json({
         message: "Product name is required",
@@ -807,12 +792,6 @@ const createProduct = async (req, res) => {
       });
     }
 
-    /*
-     * ----------------------------------------
-     * Verify category
-     * ----------------------------------------
-     */
-
     const categoryDoc =
       await Category.findById(category);
 
@@ -822,33 +801,28 @@ const createProduct = async (req, res) => {
       });
     }
 
-    /*
-     * ----------------------------------------
-     * Generate slug
-     * ----------------------------------------
-     */
-
     const baseSlug = slugify(name);
 
     let slug = baseSlug;
     let counter = 1;
 
-    while (
-      await Product.exists({ slug })
-    ) {
+    while (await Product.exists({ slug })) {
       slug = `${baseSlug}-${counter}`;
-      counter++;
+      counter += 1;
     }
 
-    /*
-     * ----------------------------------------
-     * Create product
-     * ----------------------------------------
-     */
-    const uploadedImages = filesToProductImages(
-  req.files,
-  name.trim()
-);
+    uploadedImages =
+      await uploadProductImages(
+        req.files,
+        name.trim()
+      );
+
+    if (!uploadedImages.length) {
+      return res.status(400).json({
+        message:
+          "At least one product image is required",
+      });
+    }
 
     const product =
       await Product.create({
@@ -858,43 +832,53 @@ const createProduct = async (req, res) => {
         shortDescription,
         brand,
         category: categoryDoc._id,
-        images:uploadedImages,
+        images: uploadedImages,
         tags,
         attributes,
         status,
-        featured:parseBoolean(featured,false),
+        featured: parseBoolean(
+          featured,
+          false
+        ),
         createdBy: req.user._id,
       });
 
     const populatedProduct =
       await Product.findById(product._id)
-        .populate(
-          "category",
-          "name slug"
-        )
+        .populate("category", "name slug")
         .lean();
 
     return res.status(201).json({
-      message: "Product created successfully",
+      message:
+        "Product created successfully",
       product: populatedProduct,
     });
   } catch (error) {
+    if (uploadedImages.length) {
+      await destroyCloudinaryImages(
+        uploadedImages
+      );
+    }
+
     console.error(
       "createProduct error:",
       error
     );
 
     return res.status(500).json({
-      message: "Failed to create product",
+      message:
+        "Failed to create product",
       error: error.message,
     });
   }
 };
 
+
 /*
  * PATCH /api/products/:id
  */
 const updateProduct = async (req, res) => {
+  let newlyUploadedImages = [];
   try {
     // Find the existing product first
     const currentProduct =
@@ -980,11 +964,12 @@ const updateProduct = async (req, res) => {
 
     // If new images were uploaded,
     // keep old images and add the new ones
-    if (req.files?.length) {
+   if (req.files?.length) {
       const existingImages =
         (currentProduct.images || []).map(
           (image, index) => ({
             url: image.url,
+            publicId: image.publicId || "",
             alt:
               image.alt ||
               currentProduct.name,
@@ -993,8 +978,8 @@ const updateProduct = async (req, res) => {
           })
         );
 
-      const uploadedImages =
-        filesToProductImages(
+      newlyUploadedImages =
+        await uploadProductImages(
           req.files,
           updates.name ||
             currentProduct.name,
@@ -1003,7 +988,7 @@ const updateProduct = async (req, res) => {
 
       updates.images = [
         ...existingImages,
-        ...uploadedImages,
+        ...newlyUploadedImages,
       ];
     }
 
@@ -1030,10 +1015,11 @@ const updateProduct = async (req, res) => {
       product,
     });
   } catch (error) {
-    console.error(
-      "updateProduct error:",
-      error
-    );
+    if (newlyUploadedImages.length) {
+      await destroyCloudinaryImages(
+        newlyUploadedImages
+      );
+    }
 
     return res.status(500).json({
       message:
