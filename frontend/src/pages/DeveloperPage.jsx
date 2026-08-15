@@ -1,4 +1,4 @@
-import React from "react";
+import React  from "react";
 import { Link } from "react-router";
 import { motion } from "framer-motion";
 
@@ -23,6 +23,7 @@ import {
   FaStore,
   FaTruck,
 } from "react-icons/fa";
+import { useEffect } from "react";
 
 const LINKEDIN_URL =
   "https://www.linkedin.com/in/syed-muharram-ali-0118a9428/";
@@ -103,6 +104,13 @@ const capabilities = [
 ];
 
 const DeveloperPage = () => {
+    useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  }, []);
   return (
     <main className="min-h-screen bg-[#f6f6f4] text-slate-950">
       {/* =========================

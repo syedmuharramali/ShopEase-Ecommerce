@@ -1,6 +1,7 @@
-
 import React from "react";
 import { Link } from "react-router";
+import developerPhoto from "../assets/developer-photo.png";
+
 import {
   FaArrowRight,
   FaEnvelope,
@@ -13,6 +14,7 @@ import {
 
 const LINKEDIN_URL =
   "https://www.linkedin.com/in/syed-muharram-ali-0118a9428/";
+
 const GITHUB_URL = "https://github.com/syedmuharramali";
 
 const Footer = () => {
@@ -34,6 +36,9 @@ const Footer = () => {
     <footer className="mt-auto border-t border-white/10 bg-[#0b0d12] text-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid gap-10 py-12 sm:py-14 md:grid-cols-2 lg:grid-cols-[1.2fr_0.65fr_0.8fr_0.75fr_0.9fr] lg:gap-10">
+          {/* =========================
+              BRAND
+          ========================== */}
           <div className="max-w-md">
             <Link
               to="/"
@@ -49,6 +54,7 @@ const Footer = () => {
                 <span className="block text-xl font-semibold tracking-[-0.03em]">
                   ShopEase
                 </span>
+
                 <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.18em] text-white/35">
                   Modern commerce
                 </span>
@@ -56,8 +62,9 @@ const Footer = () => {
             </Link>
 
             <p className="mt-5 text-sm leading-7 text-white/45">
-              Clear product options, live stock checks, product-specific delivery,
-              cart checkout, order tracking, and verified customer reviews.
+              Clear product options, live stock checks, product-specific
+              delivery, cart checkout, order tracking, and verified customer
+              reviews.
             </p>
 
             <Link
@@ -69,33 +76,60 @@ const Footer = () => {
             </Link>
           </div>
 
+          {/* =========================
+              SHOP
+          ========================== */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
               Shop
             </p>
+
             <div className="mt-5 flex flex-col items-start gap-3.5">
-              <Link to="/" className="text-sm text-white/55 transition hover:text-white">
+              <Link
+                to="/"
+                className="text-sm text-white/55 transition hover:text-white"
+              >
                 Home
               </Link>
-              <Link to="/products" className="text-sm text-white/55 transition hover:text-white">
+
+              <Link
+                to="/products"
+                className="text-sm text-white/55 transition hover:text-white"
+              >
                 Products
               </Link>
-              <Link to="/wishlist" className="text-sm text-white/55 transition hover:text-white">
+
+              <Link
+                to="/wishlist"
+                className="text-sm text-white/55 transition hover:text-white"
+              >
                 Wishlist
               </Link>
-              <Link to="/cart" className="text-sm text-white/55 transition hover:text-white">
+
+              <Link
+                to="/cart"
+                className="text-sm text-white/55 transition hover:text-white"
+              >
                 Cart
               </Link>
-              <Link to="/track-order" className="text-sm text-white/55 transition hover:text-white">
+
+              <Link
+                to="/track-order"
+                className="text-sm text-white/55 transition hover:text-white"
+              >
                 Track order
               </Link>
             </div>
           </div>
 
+          {/* =========================
+              CUSTOMER CARE
+          ========================== */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
               Customer care
             </p>
+
             <div className="mt-5 flex flex-col items-start gap-3.5">
               {storeLinks.map(([to, label]) => (
                 <Link
@@ -106,16 +140,24 @@ const Footer = () => {
                   {label}
                 </Link>
               ))}
-              <Link to="/contact" className="text-sm text-white/55 transition hover:text-white">
+
+              <Link
+                to="/contact"
+                className="text-sm text-white/55 transition hover:text-white"
+              >
                 Contact
               </Link>
             </div>
           </div>
 
+          {/* =========================
+              POLICIES
+          ========================== */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
               Policies
             </p>
+
             <div className="mt-5 flex flex-col items-start gap-3.5">
               {legalLinks.map(([to, label]) => (
                 <Link
@@ -137,32 +179,60 @@ const Footer = () => {
             </Link>
           </div>
 
+          {/* =========================
+              DEVELOPER
+          ========================== */}
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
               Built by
             </p>
 
             <div className="mt-5">
+              {/* Developer photo card */}
               <Link
                 to="/developer"
-                className="group inline-flex items-center gap-2 text-sm font-semibold text-white transition hover:text-violet-300"
+                className="group inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2.5 pr-4 transition duration-300 hover:-translate-y-0.5 hover:border-violet-400/30 hover:bg-white/[0.07]"
               >
-                Syed Muharram Ali
-                <FaArrowRight className="text-[9px] transition group-hover:translate-x-1" />
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full ring-2 ring-violet-400/50 ring-offset-2 ring-offset-[#0b0d12]">
+                  <img
+                    src={developerPhoto}
+                    alt="Syed Muharram Ali"
+                    className="h-full w-full object-cover object-top transition duration-300 group-hover:scale-105"
+                  />
+                </div>
+
+                <div>
+                  <span className="block text-sm font-semibold text-white transition group-hover:text-violet-300">
+                    Syed Muharram Ali
+                  </span>
+
+                  <span className="mt-0.5 block text-[10px] text-white/40">
+                    MERN Stack Developer
+                  </span>
+                </div>
               </Link>
 
-              <p className="mt-2 text-xs leading-5 text-white/40">
+              <p className="mt-3 text-xs leading-5 text-white/40">
                 MERN Stack Developer behind the ShopEase experience.
               </p>
 
+              {/* Case study */}
               <Link
                 to="/developer"
+                onClick={() =>
+                  window.scrollTo({
+                    top: 0,
+                    left: 0,
+                    behavior: "smooth",
+                  })
+                }
                 className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-violet-300 transition hover:text-violet-200"
               >
                 Developer case study
                 <FaArrowRight className="text-[8px]" />
               </Link>
 
+              {/* Social buttons */}
               <div className="mt-4 flex items-center gap-2.5">
                 <a
                   href={LINKEDIN_URL}
@@ -188,6 +258,9 @@ const Footer = () => {
           </div>
         </div>
 
+        {/* =========================
+            BOTTOM BAR
+        ========================== */}
         <div className="flex flex-col gap-4 border-t border-white/10 py-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-white/30">
             © {currentYear} ShopEase. All rights reserved.

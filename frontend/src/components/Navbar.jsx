@@ -12,6 +12,7 @@ import {
   FaBoxOpen,
   FaEnvelope,
   FaHome,
+  FaCode,
   FaHeart,
   FaLock,
   FaShoppingCart,
@@ -107,6 +108,11 @@ const Navbar = () => {
       label: "Contact",
       icon: FaEnvelope,
     },
+    {
+  to: "/developer",
+  label: "Developer",
+  icon: FaCode,
+},
   ];
 
   return (

@@ -76,6 +76,7 @@ const AppShell = () => {
             path="/admin/products/edit/:id"
             element={<AdminProductForm />}
           />
+          <Route path="/developer" element={<DeveloperPage />} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>
