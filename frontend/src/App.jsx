@@ -1,3 +1,4 @@
+
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -21,10 +22,16 @@ import CartPage from "./pages/CartPage.jsx";
 import WishlistPage from "./pages/WishlistPage.jsx";
 import CartCheckoutPage from "./pages/CartCheckoutPage.jsx";
 import TrackOrderPage from "./pages/TrackOrderPage.jsx";
+import StoreInfoPage from "./pages/StoreInfoPage.jsx";
+import PaymentResultPage from "./pages/PaymentResultPage.jsx";
+import DeveloperPage from "./pages/DeveloperPage.jsx";
 
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminProductForm from "./pages/AdminProductForm.jsx";
+import AdminReviewsPage from "./pages/AdminReviewsPage.jsx";
+import AdminCouponsPage from "./pages/AdminCouponsPage.jsx";
+import AdminAnalyticsPage from "./pages/AdminAnalyticsPage.jsx";
 
 import NotFound from "./pages/NotFound.jsx";
 
@@ -47,9 +54,20 @@ const AppShell = () => {
           <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/checkout/cart" element={<CartCheckoutPage />} />
           <Route path="/track-order" element={<TrackOrderPage />} />
+          <Route path="/about" element={<StoreInfoPage type="about" />} />
+          <Route path="/faq" element={<StoreInfoPage type="faq" />} />
+          <Route path="/shipping" element={<StoreInfoPage type="shipping" />} />
+          <Route path="/returns" element={<StoreInfoPage type="returns" />} />
+          <Route path="/privacy" element={<StoreInfoPage type="privacy" />} />
+          <Route path="/terms" element={<StoreInfoPage type="terms" />} />
+          <Route path="/payment-result" element={<PaymentResultPage />} />
+          <Route path="/developer" element={<DeveloperPage />} />
 
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/reviews" element={<AdminReviewsPage />} />
+          <Route path="/admin/coupons" element={<AdminCouponsPage />} />
+          <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
           <Route
             path="/admin/products/new"
             element={<AdminProductForm />}

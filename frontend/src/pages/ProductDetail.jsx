@@ -15,11 +15,13 @@ import {
   FaPlus,
   FaShieldAlt,
   FaShoppingBag,
+  FaStar,
   FaTag,
   FaTruck,
 } from 'react-icons/fa';
 import EmailModal from '../components/EmailModal';
 import ProductCard from '../components/ProductCard';
+import ProductReviews from '../components/ProductReviews';
 import { useStore } from '../context/storeContext';
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || '').replace(/\/+$/, '');
@@ -881,7 +883,7 @@ const ProductDetail = () => {
                     </button>
                   </div>
 
-                  <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <button
                       type="button"
                       onClick={() => setShowEmailModal(true)}
@@ -901,6 +903,12 @@ const ProductDetail = () => {
                     >
                       <FaHeart /> {wishlisted ? 'Saved' : 'Wishlist'}
                     </button>
+                    <a
+                      href="#write-review"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 text-sm font-bold text-amber-700 transition hover:-translate-y-0.5 hover:border-amber-300 hover:bg-amber-100"
+                    >
+                      <FaStar /> Write review
+                    </a>
                   </div>
 
                   <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -966,6 +974,8 @@ const ProductDetail = () => {
               </p>
             </div>
           </section>
+
+          <ProductReviews productId={product._id} />
 
           {(relatedLoading || relatedProducts.length > 0) && (
             <section className="mt-10">

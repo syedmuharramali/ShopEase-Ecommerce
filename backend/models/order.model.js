@@ -30,8 +30,8 @@ const productSnapshotSchema = new mongoose.Schema(
 
 const orderItemSchema = new mongoose.Schema(
   {
-    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true, index: true },
-    variant: { type: mongoose.Schema.Types.ObjectId, ref: "ProductVariant", required: true, index: true },
+    product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
+    variant: { type: mongoose.Schema.Types.ObjectId, ref: "ProductVariant", required: true },
     productSnapshot: { type: productSnapshotSchema, required: true },
     variantSnapshot: { type: variantSnapshotSchema, required: true },
     quantity: { type: Number, required: true, min: 1 },
@@ -40,6 +40,40 @@ const orderItemSchema = new mongoose.Schema(
     total: { type: Number, required: true, min: 0 },
   },
   { _id: true }
+);
+
+const couponSnapshotSchema = new mongoose.Schema(
+  {
+    couponId: { type: mongoose.Schema.Types.ObjectId, ref: "Coupon" },
+    code: { type: String, trim: true, uppercase: true },
+    discountType: { type: String, enum: ["percentage", "fixed"] },
+    value: { type: Number, min: 0 },
+    discountAmount: { type: Number, min: 0, default: 0 },
+  },
+  { _id: false }
+);
+
+const paymentSnapshotSchema = new mongoose.Schema(
+  {
+    provider: {
+      type: String,
+      enum: ["cod", "card", "jazzcash"],
+      default: "cod",
+    },
+    status: {
+      type: String,
+      enum: ["unpaid", "pending", "paid", "failed", "refunded"],
+      default: "unpaid",
+      index: true,
+    },
+    transactionRef: { type: String, default: "", trim: true },
+    gatewayResponseCode: { type: String, default: "", trim: true },
+    gatewayResponseMessage: { type: String, default: "", trim: true },
+    retrievalReferenceNo: { type: String, default: "", trim: true },
+    paidAt: { type: Date, default: null },
+    expiresAt: { type: Date, default: null },
+  },
+  { _id: false }
 );
 
 const orderSchema = new mongoose.Schema(
@@ -59,8 +93,11 @@ const orderSchema = new mongoose.Schema(
     items: { type: [orderItemSchema], default: [] },
 
     subtotal: { type: Number, required: true, min: 0 },
+    discount: { type: Number, required: true, min: 0, default: 0 },
     deliveryCharge: { type: Number, required: true, min: 0, default: 0 },
     total: { type: Number, required: true, min: 0, default: 0 },
+    coupon: { type: couponSnapshotSchema, default: undefined },
+    couponUsageReleased: { type: Boolean, default: false },
 
     province: {
       type: String,
@@ -80,7 +117,8 @@ const orderSchema = new mongoose.Schema(
     city: { type: String, required: true, trim: true },
     address: { type: String, required: true, trim: true },
     postalCode: { type: String, required: true, trim: true },
-    paymentMethod: { type: String, enum: ["cod", "card"], default: "cod", required: true },
+    paymentMethod: { type: String, enum: ["cod", "card", "jazzcash"], default: "cod", required: true },
+    payment: { type: paymentSnapshotSchema, default: () => ({ provider: "cod", status: "unpaid" }) },
     status: {
       type: String,
       enum: ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"],

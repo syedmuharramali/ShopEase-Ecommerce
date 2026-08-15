@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Link,
@@ -14,6 +13,7 @@ import {
   FaBox,
   FaBoxOpen,
   FaCheckCircle,
+  FaChartLine,
   FaClock,
   FaEdit,
   FaExclamationTriangle,
@@ -137,6 +137,14 @@ const getOrderSubtotal = (order) => Number(order?.subtotal || 0);
 
 const getOrderDeliveryCharge = (order) =>
   Number(order?.deliveryCharge || 0);
+
+const getOrderDiscount = (order) => Number(order?.discount || 0);
+
+const getOrderPaymentLabel = (order) => {
+  if (order?.paymentMethod === "jazzcash") return "JazzCash";
+  if (order?.paymentMethod === "card") return "Card";
+  return "Cash on Delivery";
+};
 
 const getOrderTotal = (order) => {
   const savedTotal = Number(order?.total);
@@ -864,6 +872,30 @@ const AdminDashboard = () => {
               >
                 View storefront
                 <FaArrowRight className="text-[9px]" />
+              </Link>
+
+              <Link
+                to="/admin/analytics"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+              >
+                <FaChartLine className="text-xs" />
+                Analytics
+              </Link>
+
+              <Link
+                to="/admin/reviews"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-5 py-3 text-sm font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+              >
+                <FaCheckCircle className="text-xs" />
+                Reviews
+              </Link>
+
+              <Link
+                to="/admin/coupons"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 hover:bg-emerald-100"
+              >
+                <FaTag className="text-xs" />
+                Coupons
               </Link>
 
               <Link
@@ -1797,6 +1829,9 @@ const AdminDashboard = () => {
                               ? formatPrice(getOrderDeliveryCharge(order))
                               : "No saved delivery charge"}
                           </p>
+                          <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                            {getOrderPaymentLabel(order)} · {order.payment?.status || (order.paymentMethod === "jazzcash" ? "pending" : "unpaid")}
+                          </p>
                         </div>
                       </div>
 
@@ -1810,6 +1845,9 @@ const AdminDashboard = () => {
                           </p>
                           <p className="mt-1 text-[10px] text-slate-400">
                             {formatPrice(getOrderSubtotal(order))} subtotal
+                            {getOrderDiscount(order) > 0
+                              ? ` - ${formatPrice(getOrderDiscount(order))} discount`
+                              : ""}
                             {getOrderDeliveryCharge(order) > 0
                               ? ` + ${formatPrice(getOrderDeliveryCharge(order))} delivery`
                               : ""}

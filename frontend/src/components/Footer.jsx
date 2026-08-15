@@ -8,15 +8,32 @@ import {
   FaLinkedinIn,
   FaLock,
   FaStore,
+  FaTruck,
 } from "react-icons/fa";
+
+const LINKEDIN_URL =
+  "https://www.linkedin.com/in/syed-muharram-ali-0118a9428/";
+const GITHUB_URL = "https://github.com/syedmuharramali";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
 
+  const storeLinks = [
+    ["/about", "About"],
+    ["/faq", "FAQ"],
+    ["/shipping", "Shipping & Delivery"],
+    ["/returns", "Returns & Refunds"],
+  ];
+
+  const legalLinks = [
+    ["/privacy", "Privacy Policy"],
+    ["/terms", "Terms & Conditions"],
+  ];
+
   return (
     <footer className="mt-auto border-t border-white/10 bg-[#0b0d12] text-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid gap-10 py-12 sm:py-14 lg:grid-cols-[1.35fr_0.7fr_0.7fr_0.8fr] lg:gap-14">
+        <div className="grid gap-10 py-12 sm:py-14 md:grid-cols-2 lg:grid-cols-[1.2fr_0.65fr_0.8fr_0.75fr_0.9fr] lg:gap-10">
           <div className="max-w-md">
             <Link
               to="/"
@@ -39,8 +56,8 @@ const Footer = () => {
             </Link>
 
             <p className="mt-5 text-sm leading-7 text-white/45">
-              A modern shopping experience with clear product options,
-              dependable availability, and a simple checkout flow.
+              Clear product options, live stock checks, product-specific delivery,
+              cart checkout, order tracking, and verified customer reviews.
             </p>
 
             <Link
@@ -54,26 +71,42 @@ const Footer = () => {
 
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
-              Explore
+              Shop
             </p>
-
             <div className="mt-5 flex flex-col items-start gap-3.5">
-              <Link
-                to="/"
-                className="text-sm text-white/55 transition hover:text-white"
-              >
+              <Link to="/" className="text-sm text-white/55 transition hover:text-white">
                 Home
               </Link>
-              <Link
-                to="/products"
-                className="text-sm text-white/55 transition hover:text-white"
-              >
-                Shop
+              <Link to="/products" className="text-sm text-white/55 transition hover:text-white">
+                Products
               </Link>
-              <Link
-                to="/contact"
-                className="text-sm text-white/55 transition hover:text-white"
-              >
+              <Link to="/wishlist" className="text-sm text-white/55 transition hover:text-white">
+                Wishlist
+              </Link>
+              <Link to="/cart" className="text-sm text-white/55 transition hover:text-white">
+                Cart
+              </Link>
+              <Link to="/track-order" className="text-sm text-white/55 transition hover:text-white">
+                Track order
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+              Customer care
+            </p>
+            <div className="mt-5 flex flex-col items-start gap-3.5">
+              {storeLinks.map(([to, label]) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className="text-sm text-white/55 transition hover:text-white"
+                >
+                  {label}
+                </Link>
+              ))}
+              <Link to="/contact" className="text-sm text-white/55 transition hover:text-white">
                 Contact
               </Link>
             </div>
@@ -81,20 +114,26 @@ const Footer = () => {
 
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
-              Need help?
+              Policies
             </p>
-
-            <p className="mt-5 text-sm leading-6 text-white/45">
-              Questions about a product or order? Reach out through our contact
-              page.
-            </p>
+            <div className="mt-5 flex flex-col items-start gap-3.5">
+              {legalLinks.map(([to, label]) => (
+                <Link
+                  key={to}
+                  to={to}
+                  className="text-sm text-white/55 transition hover:text-white"
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
 
             <Link
-              to="/contact"
-              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white/80 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              to="/track-order"
+              className="mt-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white/80 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
             >
-              <FaEnvelope className="text-[10px]" />
-              Contact ShopEase
+              <FaTruck className="text-[10px]" />
+              Track an order
             </Link>
           </div>
 
@@ -104,16 +143,29 @@ const Footer = () => {
             </p>
 
             <div className="mt-5">
-              <p className="text-sm font-semibold text-white">
+              <Link
+                to="/developer"
+                className="group inline-flex items-center gap-2 text-sm font-semibold text-white transition hover:text-violet-300"
+              >
                 Syed Muharram Ali
-              </p>
+                <FaArrowRight className="text-[9px] transition group-hover:translate-x-1" />
+              </Link>
+
               <p className="mt-2 text-xs leading-5 text-white/40">
-                Full-stack developer behind the ShopEase experience.
+                MERN Stack Developer behind the ShopEase experience.
               </p>
+
+              <Link
+                to="/developer"
+                className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-violet-300 transition hover:text-violet-200"
+              >
+                Developer case study
+                <FaArrowRight className="text-[8px]" />
+              </Link>
 
               <div className="mt-4 flex items-center gap-2.5">
                 <a
-                  href="https://www.linkedin.com/in/syed-muharram-ali-0118a9428/"
+                  href={LINKEDIN_URL}
                   target="_blank"
                   rel="noreferrer"
                   aria-label="Syed Muharram Ali on LinkedIn"
@@ -123,7 +175,7 @@ const Footer = () => {
                 </a>
 
                 <a
-                  href="https://github.com/syedmuharramali"
+                  href={GITHUB_URL}
                   target="_blank"
                   rel="noreferrer"
                   aria-label="Syed Muharram Ali on GitHub"
@@ -142,9 +194,20 @@ const Footer = () => {
           </p>
 
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/20">
+            <Link
+              to="/developer"
+              className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/20 transition hover:text-white/55"
+            >
               Designed & developed by Syed Muharram Ali
-            </span>
+            </Link>
+
+            <Link
+              to="/contact"
+              className="inline-flex items-center gap-1.5 text-[10px] font-medium text-white/25 transition hover:text-white/60"
+            >
+              <FaEnvelope className="text-[8px]" />
+              Support
+            </Link>
 
             <Link
               to="/admin/login"

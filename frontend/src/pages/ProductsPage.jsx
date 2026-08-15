@@ -1,5 +1,3 @@
-// frontend/src/pages/ProductsPage.jsx
-
 import React, {
   useEffect,
   useState,
@@ -8,6 +6,7 @@ import React, {
 import axios from "axios";
 
 import { motion } from "framer-motion";
+import { useSearchParams } from "react-router";
 
 import {
   FaBoxOpen,
@@ -48,6 +47,21 @@ const ProductSkeleton = () => (
 );
 
 const ProductsPage = () => {
+  const [searchParams, setSearchParams] =
+    useSearchParams();
+
+  const initialSort =
+    searchParams.get("sort") || "featured";
+
+  const safeInitialSort = [
+    "featured",
+    "newest",
+    "price-low",
+    "price-high",
+  ].includes(initialSort)
+    ? initialSort
+    : "featured";
+
   /*
    * ----------------------------------------
    * Product data
@@ -75,20 +89,31 @@ const ProductsPage = () => {
   const [
     searchTerm,
     setSearchTerm,
-  ] = useState("");
+  ] = useState(
+    () =>
+      searchParams.get("search") || ""
+  );
 
   const [
     debouncedSearch,
     setDebouncedSearch,
-  ] = useState("");
+  ] = useState(
+    () =>
+      (
+        searchParams.get("search") || ""
+      ).trim()
+  );
 
   const [
     selectedCategory,
     setSelectedCategory,
-  ] = useState("");
+  ] = useState(
+    () =>
+      searchParams.get("category") || ""
+  );
 
   const [sortBy, setSortBy] =
-    useState("featured");
+    useState(safeInitialSort);
 
   /*
    * ----------------------------------------
@@ -97,7 +122,14 @@ const ProductsPage = () => {
    */
 
   const [page, setPage] =
-    useState(1);
+    useState(() =>
+      Math.max(
+        1,
+        Number(
+          searchParams.get("page")
+        ) || 1
+      )
+    );
 
   const [
     pagination,
@@ -133,6 +165,74 @@ const ProductsPage = () => {
     return () =>
       clearTimeout(timeout);
   }, [searchTerm]);
+
+  /*
+   * ----------------------------------------
+   * Keep the visible filters in the URL.
+   *
+   * This makes homepage links such as:
+   * /products?category=footwear
+   * /products?search=nike
+   * /products?sort=newest
+   *
+   * open with the correct filters active.
+   * ----------------------------------------
+   */
+
+  useEffect(() => {
+    const nextParams =
+      new URLSearchParams();
+
+    if (debouncedSearch) {
+      nextParams.set(
+        "search",
+        debouncedSearch
+      );
+    }
+
+    if (selectedCategory) {
+      nextParams.set(
+        "category",
+        selectedCategory
+      );
+    }
+
+    if (
+      sortBy &&
+      sortBy !== "featured"
+    ) {
+      nextParams.set(
+        "sort",
+        sortBy
+      );
+    }
+
+    if (page > 1) {
+      nextParams.set(
+        "page",
+        String(page)
+      );
+    }
+
+    if (
+      nextParams.toString() !==
+      searchParams.toString()
+    ) {
+      setSearchParams(
+        nextParams,
+        {
+          replace: true,
+        }
+      );
+    }
+  }, [
+    debouncedSearch,
+    selectedCategory,
+    sortBy,
+    page,
+    searchParams,
+    setSearchParams,
+  ]);
 
   /*
    * ----------------------------------------

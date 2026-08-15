@@ -18,6 +18,7 @@ import {
   FaMapMarkerAlt,
   FaMinus,
   FaPhone,
+  FaPercent,
   FaPlus,
   FaShieldAlt,
   FaShoppingBag,
@@ -79,6 +80,27 @@ const getImageUrl = (image) => {
 const getImageAlt = (image, fallback) =>
   typeof image === "object" && image?.alt ? image.alt : fallback;
 
+const submitGatewayForm = (payment) => {
+  if (!payment?.redirectUrl || !payment?.fields) return false;
+
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = payment.redirectUrl;
+  form.style.display = "none";
+
+  Object.entries(payment.fields).forEach(([name, value]) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value ?? "";
+    form.appendChild(input);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+  return true;
+};
+
 const OrderPage = () => {
   const { id: productId } = useParams();
   const [searchParams] = useSearchParams();
@@ -95,6 +117,11 @@ const OrderPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [completedOrder, setCompletedOrder] = useState(null);
+  const [paymentConfig, setPaymentConfig] = useState({ jazzcash: { enabled: false, mode: "sandbox" } });
+  const [couponCode, setCouponCode] = useState("");
+  const [couponQuote, setCouponQuote] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponMessage, setCouponMessage] = useState(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -107,6 +134,23 @@ const OrderPage = () => {
     paymentMethod: "cod",
     quantity: requestedQuantity,
   });
+
+  useEffect(() => {
+    let ignore = false;
+
+    axios
+      .get(`${API_BASE_URL}/payments/config`)
+      .then((response) => {
+        if (!ignore && response.data) setPaymentConfig(response.data);
+      })
+      .catch(() => {
+        if (!ignore) setPaymentConfig({ jazzcash: { enabled: false, mode: "sandbox" } });
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     const fetchCheckoutData = async () => {
@@ -227,11 +271,54 @@ const OrderPage = () => {
     ? Number(selectedDeliveryRate.charge) || 0
     : 0;
 
-  const orderTotal = subtotal + deliveryCharge;
+  const discount = Number(couponQuote?.discountAmount || 0);
+  const orderTotal = Math.max(0, subtotal - discount + deliveryCharge);
+
+  useEffect(() => {
+    if (couponQuote) {
+      setCouponQuote(null);
+      setCouponMessage({ type: "info", text: "Quantity changed. Reapply the coupon to refresh the discount." });
+    }
+  }, [subtotal]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const selectedOptions = variant?.selectedOptions || [];
   const isUnavailable =
     !variant?.isActive || Number(variant?.stock || 0) < 1;
+
+  const applyCoupon = async () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code || couponLoading) return;
+
+    try {
+      setCouponLoading(true);
+      setCouponMessage(null);
+      const response = await axios.post(`${API_BASE_URL}/coupons/validate`, {
+        code,
+        subtotal,
+      });
+      setCouponCode(code);
+      setCouponQuote({
+        ...response.data?.coupon,
+        discountAmount: Number(response.data?.discountAmount || 0),
+      });
+      setCouponMessage({ type: "success", text: `${code} applied successfully.` });
+    } catch (error) {
+      setCouponQuote(null);
+      setCouponMessage({
+        type: "error",
+        text: error.response?.data?.message || "This coupon could not be applied.",
+      });
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setCouponQuote(null);
+    setCouponCode("");
+    setCouponMessage(null);
+  };
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -338,6 +425,10 @@ const OrderPage = () => {
       nextErrors.quantity = "Please choose an available quantity.";
     }
 
+    if (formData.paymentMethod === "jazzcash" && !paymentConfig?.jazzcash?.enabled) {
+      nextErrors.submit = "JazzCash is not configured yet. Please choose Cash on Delivery.";
+    }
+
     if (isUnavailable) {
       nextErrors.submit =
         "This variant is currently unavailable. Please choose another option.";
@@ -366,6 +457,7 @@ const OrderPage = () => {
         address: formData.address.trim(),
         postalCode: formData.postalCode.trim(),
         paymentMethod: formData.paymentMethod,
+        couponCode: couponQuote ? couponCode.trim().toUpperCase() : "",
         quantity: Number(formData.quantity),
       };
 
@@ -378,6 +470,15 @@ const OrderPage = () => {
         response.data?.order ||
         (response.data?._id ? response.data : null) ||
         {};
+
+      const payment = response.data?.payment || null;
+
+      if (formData.paymentMethod === "jazzcash") {
+        if (!submitGatewayForm(payment)) {
+          throw new Error("JazzCash redirect could not be started.");
+        }
+        return;
+      }
 
       setCompletedOrder(order);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -542,6 +643,12 @@ const OrderPage = () => {
                   {formatPrice(completedOrder.subtotal ?? subtotal)}
                 </span>
               </div>
+              {(completedOrder.discount ?? discount) > 0 && (
+                <div className="flex items-center justify-between text-emerald-700">
+                  <span>Discount {completedOrder.coupon?.code ? `(${completedOrder.coupon.code})` : couponQuote?.code ? `(${couponQuote.code})` : ""}</span>
+                  <span className="font-semibold">-{formatPrice(completedOrder.discount ?? discount)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-slate-500">
                 <span>Delivery</span>
                 <span className="font-medium text-slate-800">
@@ -836,7 +943,7 @@ const OrderPage = () => {
                 </div>
               </div>
 
-              <label className="flex cursor-pointer items-center justify-between rounded-2xl border-2 border-slate-950 bg-slate-50 p-4">
+              <label className={`flex cursor-pointer items-center justify-between rounded-2xl border-2 p-4 ${formData.paymentMethod === "cod" ? "border-slate-950 bg-slate-50" : "border-slate-200 bg-white"}`}>
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-900 shadow-sm">
                     <FaTruck />
@@ -851,9 +958,11 @@ const OrderPage = () => {
                   </div>
                 </div>
 
-                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-950 text-[9px] text-white">
-                  <FaCheck />
-                </div>
+                {formData.paymentMethod === "cod" && (
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-950 text-[9px] text-white">
+                    <FaCheck />
+                  </div>
+                )}
 
                 <input
                   type="radio"
@@ -863,6 +972,19 @@ const OrderPage = () => {
                   onChange={handleChange}
                   className="sr-only"
                 />
+              </label>
+
+              <label className={`mt-3 flex items-center justify-between rounded-2xl border-2 p-4 ${paymentConfig?.jazzcash?.enabled ? "cursor-pointer" : "cursor-not-allowed opacity-55"} ${formData.paymentMethod === "jazzcash" ? "border-violet-500 bg-violet-50" : "border-slate-200 bg-white"}`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 font-black text-violet-700">JC</div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-950">JazzCash</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Secure mobile-wallet payment through JazzCash.</p>
+                    {!paymentConfig?.jazzcash?.enabled && <p className="mt-1 text-[10px] font-semibold text-amber-600">Merchant credentials not configured yet</p>}
+                  </div>
+                </div>
+                {formData.paymentMethod === "jazzcash" && <div className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-600 text-[9px] text-white"><FaCheck /></div>}
+                <input type="radio" name="paymentMethod" value="jazzcash" checked={formData.paymentMethod === "jazzcash"} onChange={handleChange} disabled={!paymentConfig?.jazzcash?.enabled} className="sr-only" />
               </label>
             </div>
           </motion.section>
@@ -987,13 +1109,29 @@ const OrderPage = () => {
 
                 <div className="my-6 h-px bg-slate-100" />
 
-                <div className="space-y-3 text-sm">
+                <div className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/40 p-4">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-violet-700"><FaPercent /> Coupon</div>
+                  <div className="mt-3 flex gap-2">
+                    <input value={couponCode} onChange={(event) => { setCouponCode(event.target.value.toUpperCase()); if (couponQuote) setCouponQuote(null); setCouponMessage(null); }} disabled={couponLoading} placeholder="SAVE10" maxLength={30} className="h-11 min-w-0 flex-1 rounded-xl border border-violet-100 bg-white px-3 font-mono text-sm uppercase outline-none focus:border-violet-400" />
+                    <button type="button" onClick={couponQuote ? removeCoupon : applyCoupon} disabled={couponLoading || (!couponQuote && !couponCode.trim())} className="rounded-xl bg-violet-600 px-4 text-xs font-bold text-white disabled:bg-violet-300">{couponLoading ? "..." : couponQuote ? "Remove" : "Apply"}</button>
+                  </div>
+                  {couponMessage && <p className={`mt-2 text-[11px] font-semibold ${couponMessage.type === "success" ? "text-emerald-700" : couponMessage.type === "info" ? "text-amber-600" : "text-rose-600"}`}>{couponMessage.text}</p>}
+                </div>
+
+                <div className="mt-5 space-y-3 text-sm">
                   <div className="flex items-center justify-between text-slate-500">
                     <span>Subtotal</span>
                     <span className="font-medium text-slate-800">
                       {formatPrice(subtotal)}
                     </span>
                   </div>
+
+                  {discount > 0 && (
+                    <div className="flex items-center justify-between text-emerald-700">
+                      <span>Discount {couponQuote?.code ? `(${couponQuote.code})` : ""}</span>
+                      <span className="font-semibold">-{formatPrice(discount)}</span>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between text-slate-500">
                     <span>Delivery</span>
@@ -1019,7 +1157,7 @@ const OrderPage = () => {
                       Order total
                     </p>
                     <p className="mt-0.5 text-xs text-slate-400">
-                      Includes product and delivery
+                      Includes discount and delivery
                     </p>
                   </div>
                   <p className="text-2xl font-semibold tracking-tight text-slate-950">
@@ -1053,12 +1191,12 @@ const OrderPage = () => {
                     {submitting ? (
                       <>
                         <FaSpinner className="animate-spin" />
-                        Placing your order...
+                        {formData.paymentMethod === "jazzcash" ? "Preparing JazzCash..." : "Placing your order..."}
                       </>
                     ) : (
                       <>
                         <FaLock className="text-xs" />
-                        Place order · {formatPrice(orderTotal)}
+                        {formData.paymentMethod === "jazzcash" ? "Continue to JazzCash" : "Place order"} · {formatPrice(orderTotal)}
                       </>
                     )}
                   </button>

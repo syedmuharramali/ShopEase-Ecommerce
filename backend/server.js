@@ -320,6 +320,11 @@ const categoryRoutes =
   require(
     "./routes/productDeliveryRate.route"
   );
+  const productReviewRoutes = require("./routes/productReview.route");
+
+  const couponRoutes = require("./routes/coupon.route");
+const paymentRoutes = require("./routes/payment.route");
+const analyticsRoutes = require("./routes/analytics.route");
 
 app.use(
   "/api/users",
@@ -330,10 +335,17 @@ app.use(
   "/api/products",
   productRoutes
 );
+
+app.use("/api/reviews", productReviewRoutes);
 app.use(
   "/api/products",
   productDeliveryRateRoutes
 );
+app.use("/api/coupons", couponRoutes);
+app.use("/api/payments", paymentRoutes);
+
+app.use("/api/admin/analytics", analyticsRoutes);
+
 
 
 app.use(

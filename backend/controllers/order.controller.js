@@ -5,6 +5,14 @@ const Product = require("../models/product.model.js");
 const ProductVariant = require("../models/productVariant.model.js");
 const ProductDeliveryRate = require("../models/productDeliveryRate.model.js");
 const sendEmail = require("../utils/sendEmail.js");
+const {
+  reserveCouponUsage,
+  releaseCouponUsage,
+} = require("../services/coupon.service.js");
+const {
+  assertJazzCashConfigured,
+  buildJazzCashPayment,
+} = require("../services/jazzcash.service.js");
 
 const ALLOWED_PROVINCES = [
   "Punjab",
@@ -15,7 +23,7 @@ const ALLOWED_PROVINCES = [
   "Islamabad Capital Territory",
 ];
 
-const ALLOWED_PAYMENT_METHODS = ["cod", "card"];
+const ALLOWED_PAYMENT_METHODS = ["cod", "jazzcash"];
 
 const ALLOWED_STATUSES = [
   "pending",
@@ -52,6 +60,19 @@ function formatPrice(value) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(Number(value) || 0)}`;
+}
+
+function getPaymentLabel(method) {
+  if (method === "jazzcash") return "JazzCash";
+  if (method === "card") return "Card";
+  return "Cash on Delivery";
+}
+
+function buildInitialPayment(method) {
+  if (method === "jazzcash") {
+    return { provider: "jazzcash", status: "pending" };
+  }
+  return { provider: method === "card" ? "card" : "cod", status: "unpaid" };
 }
 
 function getFrontendUrl() {
@@ -132,6 +153,7 @@ function validateOrderInput(body = {}) {
   const address = cleanString(body.address);
   const postalCode = cleanString(body.postalCode);
   const paymentMethod = cleanString(body.paymentMethod).toLowerCase() || "cod";
+  const couponCode = cleanString(body.couponCode).toUpperCase();
   const quantity = Number(body.quantity);
 
   if (!mongoose.Types.ObjectId.isValid(variantId)) {
@@ -194,6 +216,7 @@ function validateOrderInput(body = {}) {
       address,
       postalCode,
       paymentMethod,
+      couponCode,
       quantity,
     },
   };
@@ -231,8 +254,13 @@ exports.createOrder = async (req, res) => {
       address,
       postalCode,
       paymentMethod,
+      couponCode,
       quantity,
     } = validation.data;
+
+    if (paymentMethod === "jazzcash") {
+      assertJazzCashConfigured();
+    }
 
     // Only active products can be ordered from the storefront.
     const product = await Product.findOne({
@@ -309,7 +337,16 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    const total = Number((subtotal + deliveryCharge).toFixed(2));
+    let couponReservation = null;
+
+    if (couponCode) {
+      couponReservation = await reserveCouponUsage(couponCode, subtotal);
+    }
+
+    const discount = Number(couponReservation?.discountAmount || 0);
+    const total = Number(
+      Math.max(0, subtotal - discount + deliveryCharge).toFixed(2)
+    );
 
     /*
      * Reserve stock atomically BEFORE creating the order.
@@ -334,6 +371,10 @@ exports.createOrder = async (req, res) => {
     );
 
     if (stockUpdate.modifiedCount !== 1) {
+      if (couponReservation?.coupon?._id) {
+        await releaseCouponUsage(couponReservation.coupon._id);
+      }
+
       return res.status(409).json({
         message:
           "Sorry, the selected variant is no longer available in the requested quantity",
@@ -352,10 +393,13 @@ exports.createOrder = async (req, res) => {
         address,
         postalCode,
         paymentMethod,
+        payment: buildInitialPayment(paymentMethod),
         quantity,
         subtotal,
+        discount,
         deliveryCharge,
         total,
+        ...(couponReservation ? { coupon: couponReservation.snapshot } : {}),
 
         product: productId,
         variant: variantId,
@@ -404,29 +448,93 @@ exports.createOrder = async (req, res) => {
         );
       }
 
+      if (couponReservation?.coupon?._id) {
+        try {
+          await releaseCouponUsage(couponReservation.coupon._id);
+          couponReservation = null;
+        } catch (couponRollbackError) {
+          console.error("Coupon rollback failed after order creation error:", couponRollbackError);
+        }
+      }
+
       throw orderError;
     }
 
-    // Email failures must never turn a successfully created order into a failure.
-    try {
-      await sendCustomerOrderEmail(order, product);
-    } catch (emailError) {
-      console.error("Customer order email error:", emailError);
+    let payment = null;
+
+    if (paymentMethod === "jazzcash") {
+      try {
+        payment = buildJazzCashPayment(order);
+        order = await Order.findByIdAndUpdate(
+          order._id,
+          {
+            $set: {
+              "payment.transactionRef": payment.transactionRef,
+              "payment.expiresAt": payment.expiresAt,
+            },
+          },
+          { new: true }
+        );
+
+        if (!order) throw new Error("Payment setup could not save the order");
+      } catch (paymentSetupError) {
+        console.error("JazzCash setup error:", paymentSetupError);
+        await ProductVariant.updateOne(
+          { _id: variantId, product: productId },
+          { $inc: { stock: quantity } }
+        );
+        if (couponReservation?.coupon?._id) {
+          await releaseCouponUsage(couponReservation.coupon._id);
+          couponReservation = null;
+        }
+        await Order.updateOne(
+          { _id: order._id },
+          {
+            $set: {
+              status: "cancelled",
+              "payment.status": "failed",
+              "payment.gatewayResponseMessage": "JazzCash setup failed before redirect",
+              couponUsageReleased: Boolean(order.coupon?.couponId),
+            },
+          }
+        );
+        return res.status(503).json({
+          message: "JazzCash could not be started. No payment was taken and the reserved stock was released.",
+        });
+      }
     }
 
-    try {
-      await sendAdminOrderNotification(order, product);
-    } catch (emailError) {
-      console.error("Admin order email error:", emailError);
+    // For online payments, wait for the verified gateway return before treating
+    // the order as paid/confirmed. COD can send the normal order notification now.
+    if (paymentMethod === "cod") {
+      try {
+        await sendCustomerOrderEmail(order, product);
+      } catch (emailError) {
+        console.error("Customer order email error:", emailError);
+      }
+
+      try {
+        await sendAdminOrderNotification(order, product);
+      } catch (emailError) {
+        console.error("Admin order email error:", emailError);
+      }
     }
 
     return res.status(201).json({
       success: true,
-      message: "Order placed successfully!",
+      message:
+        paymentMethod === "jazzcash"
+          ? "Order reserved. Continue to JazzCash to complete payment."
+          : "Order placed successfully!",
       order,
+      payment,
     });
   } catch (error) {
     console.error("Create order error:", error);
+
+    if (error?.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
 
     if (error?.name === "ValidationError") {
       const firstMessage = Object.values(error.errors || {})[0]?.message;
@@ -455,6 +563,7 @@ exports.createOrder = async (req, res) => {
 
 exports.createCartOrder = async (req, res) => {
   const reserved = [];
+  let couponReservation = null;
 
   const rollbackReservedStock = async () => {
     const linesToRestore = reserved.splice(0).reverse();
@@ -480,6 +589,7 @@ exports.createCartOrder = async (req, res) => {
     const address = cleanString(req.body?.address);
     const postalCode = cleanString(req.body?.postalCode);
     const paymentMethod = cleanString(req.body?.paymentMethod).toLowerCase() || "cod";
+    const couponCode = cleanString(req.body?.couponCode).toUpperCase();
     const requestedItems = Array.isArray(req.body?.items) ? req.body.items : [];
 
     if (!name || name.length > 120) return res.status(400).json({ message: "A valid name is required" });
@@ -490,6 +600,7 @@ exports.createCartOrder = async (req, res) => {
     if (!address) return res.status(400).json({ message: "Address is required" });
     if (!postalCode) return res.status(400).json({ message: "Postal code is required" });
     if (!ALLOWED_PAYMENT_METHODS.includes(paymentMethod)) return res.status(400).json({ message: "Invalid payment method" });
+    if (paymentMethod === "jazzcash") assertJazzCashConfigured();
     if (requestedItems.length < 1 || requestedItems.length > 10) {
       return res.status(400).json({ message: "Cart must contain between 1 and 10 different items" });
     }
@@ -600,7 +711,15 @@ exports.createCartOrder = async (req, res) => {
 
     const subtotal = Number(orderItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2));
     const deliveryCharge = Number(orderItems.reduce((sum, item) => sum + item.deliveryCharge, 0).toFixed(2));
-    const total = Number((subtotal + deliveryCharge).toFixed(2));
+
+    if (couponCode) {
+      couponReservation = await reserveCouponUsage(couponCode, subtotal);
+    }
+
+    const discount = Number(couponReservation?.discountAmount || 0);
+    const total = Number(
+      Math.max(0, subtotal - discount + deliveryCharge).toFixed(2)
+    );
 
     let order;
     try {
@@ -613,9 +732,12 @@ exports.createCartOrder = async (req, res) => {
         address,
         postalCode,
         paymentMethod,
+        payment: buildInitialPayment(paymentMethod),
         subtotal,
+        discount,
         deliveryCharge,
         total,
+        ...(couponReservation ? { coupon: couponReservation.snapshot } : {}),
         items: orderItems.map((item) => ({
           product: item.productId,
           variant: item.variantId,
@@ -633,24 +755,94 @@ exports.createCartOrder = async (req, res) => {
       });
     } catch (orderError) {
       await rollbackReservedStock();
+      if (couponReservation?.coupon?._id) {
+        try {
+          await releaseCouponUsage(couponReservation.coupon._id);
+          couponReservation = null;
+        } catch (couponRollbackError) {
+          console.error("Cart coupon rollback error:", couponRollbackError);
+        }
+      }
       throw orderError;
     }
 
-    try {
-      await sendCartCustomerOrderEmail(order);
-    } catch (emailError) {
-      console.error("Cart customer email error:", emailError);
-    }
-    try {
-      await sendCartAdminOrderNotification(order);
-    } catch (emailError) {
-      console.error("Cart admin email error:", emailError);
+    let payment = null;
+
+    if (paymentMethod === "jazzcash") {
+      try {
+        payment = buildJazzCashPayment(order);
+        order = await Order.findByIdAndUpdate(
+          order._id,
+          {
+            $set: {
+              "payment.transactionRef": payment.transactionRef,
+              "payment.expiresAt": payment.expiresAt,
+            },
+          },
+          { new: true }
+        );
+
+        if (!order) throw new Error("Payment setup could not save the order");
+      } catch (paymentSetupError) {
+        console.error("Cart JazzCash setup error:", paymentSetupError);
+        await rollbackReservedStock();
+        if (couponReservation?.coupon?._id) {
+          await releaseCouponUsage(couponReservation.coupon._id);
+          couponReservation = null;
+        }
+        await Order.updateOne(
+          { _id: order._id },
+          {
+            $set: {
+              status: "cancelled",
+              "payment.status": "failed",
+              "payment.gatewayResponseMessage": "JazzCash setup failed before redirect",
+              couponUsageReleased: Boolean(order.coupon?.couponId),
+            },
+          }
+        );
+        return res.status(503).json({
+          message: "JazzCash could not be started. No payment was taken and the reserved stock was released.",
+        });
+      }
     }
 
-    return res.status(201).json({ success: true, message: "Cart order placed successfully!", order });
+    if (paymentMethod === "cod") {
+      try {
+        await sendCartCustomerOrderEmail(order);
+      } catch (emailError) {
+        console.error("Cart customer email error:", emailError);
+      }
+      try {
+        await sendCartAdminOrderNotification(order);
+      } catch (emailError) {
+        console.error("Cart admin email error:", emailError);
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message:
+        paymentMethod === "jazzcash"
+          ? "Cart reserved. Continue to JazzCash to complete payment."
+          : "Cart order placed successfully!",
+      order,
+      payment,
+    });
   } catch (error) {
     console.error("Create cart order error:", error);
     if (reserved.length) await rollbackReservedStock();
+    if (couponReservation?.coupon?._id) {
+      try {
+        await releaseCouponUsage(couponReservation.coupon._id);
+      } catch (couponRollbackError) {
+        console.error("Cart coupon rollback error:", couponRollbackError);
+      }
+    }
+
+    if (error?.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
 
     if (error?.name === "ValidationError") {
       const firstMessage = Object.values(error.errors || {})[0]?.message;
@@ -859,8 +1051,11 @@ exports.trackOrder = async (req, res) => {
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
         subtotal: Number(order.subtotal || 0),
+        discount: Number(order.discount || 0),
         deliveryCharge: Number(order.deliveryCharge || 0),
         total: Number(order.total || order.subtotal || 0),
+        couponCode: order.coupon?.code || "",
+        paymentStatus: order.payment?.status || (order.paymentMethod === "cod" ? "unpaid" : "pending"),
         province: order.province,
         city: order.city,
         paymentMethod: order.paymentMethod,
@@ -906,6 +1101,16 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     const previousStatus = existingOrder.status;
+
+    if (
+      existingOrder.paymentMethod === "jazzcash" &&
+      existingOrder.payment?.status !== "paid" &&
+      status !== "cancelled"
+    ) {
+      return res.status(400).json({
+        message: "JazzCash payment must be completed before this order can move forward",
+      });
+    }
 
     if (status === previousStatus) {
       return res.json({
@@ -1009,6 +1214,16 @@ exports.updateOrderStatus = async (req, res) => {
         return res.status(409).json({
           message: "Order could not be cancelled because inventory could not be restored",
         });
+      }
+
+      if (updatedOrder.coupon?.couponId && !updatedOrder.couponUsageReleased) {
+        try {
+          await releaseCouponUsage(updatedOrder.coupon.couponId);
+          updatedOrder.couponUsageReleased = true;
+          await updatedOrder.save();
+        } catch (couponReleaseError) {
+          console.error("Order cancellation coupon release error:", couponReleaseError);
+        }
       }
     }
 
@@ -1169,7 +1384,7 @@ const sendCustomerOrderEmail = async (order, product) => {
         <div style="background: white; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin: 20px 0;">
           <h3 style="margin-top: 0;">Payment method</h3>
           <p>
-            ${order.paymentMethod === "cod" ? "Cash on Delivery" : "Card"}
+            ${getPaymentLabel(order.paymentMethod)}
           </p>
         </div>
 
@@ -1276,7 +1491,7 @@ const sendAdminOrderNotification = async (order, product) => {
 
       <p>
         <strong>Payment method:</strong>
-        ${order.paymentMethod === "cod" ? "Cash on Delivery" : "Card"}
+        ${getPaymentLabel(order.paymentMethod)}
       </p>
 
       <p>
@@ -1337,6 +1552,7 @@ const sendCartCustomerOrderEmail = async (order) => {
       <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:20px;margin:20px 0;">${cartItemsHtml(order)}</div>
       <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:20px;">
         <p>Product subtotal: <strong>${formatPrice(order.subtotal)}</strong></p>
+        ${order.discount > 0 ? `<p>Discount${order.coupon?.code ? ` (${escapeHtml(order.coupon.code)})` : ""}: <strong>-${formatPrice(order.discount)}</strong></p>` : ""}
         <p>Delivery to ${escapeHtml(order.province)}: <strong>${formatPrice(order.deliveryCharge)}</strong></p>
         <p style="font-size:19px;">Total: <strong>${formatPrice(order.total)}</strong></p>
       </div>
@@ -1352,6 +1568,7 @@ const sendCartAdminOrderNotification = async (order) => {
     <p><strong>Customer:</strong> ${escapeHtml(order.name)} — ${escapeHtml(order.phoneNumber)}</p>
     <div style="border:1px solid #e2e8f0;border-radius:14px;padding:20px;">${cartItemsHtml(order)}</div>
     <p><strong>Subtotal:</strong> ${formatPrice(order.subtotal)}</p>
+    ${order.discount > 0 ? `<p><strong>Discount${order.coupon?.code ? ` (${escapeHtml(order.coupon.code)})` : ""}:</strong> -${formatPrice(order.discount)}</p>` : ""}
     <p><strong>Delivery:</strong> ${formatPrice(order.deliveryCharge)}</p>
     <p><strong>Total:</strong> ${formatPrice(order.total)}</p>
     <p><strong>Ship to:</strong> ${escapeHtml(order.address)}, ${escapeHtml(order.city)}, ${escapeHtml(order.province)}</p>
