@@ -7,64 +7,57 @@ const DELIVERY_REGIONS = [
   "Balochistan",
   "Gilgit-Baltistan",
   "Islamabad Capital Territory",
+  "Azad Jammu & Kashmir",
 ];
 
-const deliveryRateSchema =
-  new mongoose.Schema(
-    {
-      region: {
-        type: String,
-        required: true,
-        enum: DELIVERY_REGIONS,
-      },
-
-      charge: {
-        type: Number,
-        required: true,
-        min: 0,
-        default: 0,
-      },
-
-      isAvailable: {
-        type: Boolean,
-        default: true,
-      },
+const deliveryRateSchema = new mongoose.Schema(
+  {
+    region: {
+      type: String,
+      required: true,
+      enum: DELIVERY_REGIONS,
     },
-    {
-      _id: false,
-    }
-  );
 
-const productDeliveryRateSchema =
-  new mongoose.Schema(
-    {
-      product: {
-        type:
-          mongoose.Schema.Types
-            .ObjectId,
-        ref: "Product",
-        required: true,
-        unique: true,
-        index: true,
-      },
-
-      rates: {
-        type: [
-          deliveryRateSchema,
-        ],
-        default: [],
-      },
+    charge: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
     },
-    {
-      timestamps: true,
-    }
-  );
 
-module.exports =
-  mongoose.model(
-    "ProductDeliveryRate",
-    productDeliveryRateSchema
-  );
+    isAvailable: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  {
+    _id: false,
+  }
+);
 
-module.exports.DELIVERY_REGIONS =
-  DELIVERY_REGIONS;
+const productDeliveryRateSchema = new mongoose.Schema(
+  {
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+      unique: true,
+      index: true,
+    },
+
+    rates: {
+      type: [deliveryRateSchema],
+      default: [],
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+module.exports = mongoose.model(
+  "ProductDeliveryRate",
+  productDeliveryRateSchema
+);
+
+module.exports.DELIVERY_REGIONS = DELIVERY_REGIONS;
