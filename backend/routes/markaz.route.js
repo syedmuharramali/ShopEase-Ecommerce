@@ -6,8 +6,10 @@ const {
   getMarkazProducts,
   updateMarkazProduct,
   getMarkazOrders,
-  updateMarkazFulfillment,
 } = require("../controllers/markaz.controller.js");
+const {
+  updateMarkazFulfillmentWithStatusSync,
+} = require("../controllers/markazFulfillment.controller.js");
 
 router.use(protect, admin);
 
@@ -17,7 +19,7 @@ router.put("/products/:productId", updateMarkazProduct);
 router.get("/orders", getMarkazOrders);
 router.put(
   "/orders/:orderId/fulfillments/:fulfillmentId",
-  updateMarkazFulfillment
+  updateMarkazFulfillmentWithStatusSync
 );
 
 module.exports = router;
