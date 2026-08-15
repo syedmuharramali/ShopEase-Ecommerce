@@ -1,5 +1,10 @@
 const mongoose = require("mongoose");
 
+/*
+ * Keep this list aligned with the current storefront checkout and admin
+ * product form. AJK will be enabled in a separate end-to-end delivery pass
+ * once checkout, order validation and the admin UI all support it together.
+ */
 const DELIVERY_REGIONS = [
   "Punjab",
   "Sindh",
@@ -7,7 +12,6 @@ const DELIVERY_REGIONS = [
   "Balochistan",
   "Gilgit-Baltistan",
   "Islamabad Capital Territory",
-  "Azad Jammu & Kashmir",
 ];
 
 const deliveryRateSchema = new mongoose.Schema(
