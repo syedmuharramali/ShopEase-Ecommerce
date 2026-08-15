@@ -42,6 +42,77 @@ const orderItemSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const supplierFulfillmentSchema = new mongoose.Schema(
+  {
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+    },
+    variant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ProductVariant",
+      required: true,
+    },
+    provider: {
+      type: String,
+      enum: ["markaz"],
+      required: true,
+    },
+    supplierProductCode: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    supplierSku: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+    },
+    supplierCost: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    expectedProfit: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    quantity: {
+      type: Number,
+      min: 1,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ["not_submitted", "submitted", "shipped", "delivered", "cancelled"],
+      default: "not_submitted",
+      index: true,
+    },
+    externalOrderId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    trackingId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    submittedAt: {
+      type: Date,
+      default: null,
+    },
+    lastUpdatedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true }
+);
+
 const couponSnapshotSchema = new mongoose.Schema(
   {
     couponId: { type: mongoose.Schema.Types.ObjectId, ref: "Coupon" },
@@ -83,14 +154,23 @@ const orderSchema = new mongoose.Schema(
     email: { type: String, required: true, trim: true, lowercase: true, match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"] },
     phoneNumber: { type: String, required: true, match: [/^\d{10,15}$/, "Please enter a valid phone number"] },
 
-    // Legacy/single-item fields. Kept for backward compatibility and Buy Now.
     product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", index: true },
     variant: { type: mongoose.Schema.Types.ObjectId, ref: "ProductVariant", index: true },
     variantSnapshot: { type: variantSnapshotSchema },
     quantity: { type: Number, min: 1, default: 1 },
 
-    // New cart-safe structure. New single-item orders also write one item here.
     items: { type: [orderItemSchema], default: [] },
+
+    /*
+     * Private supplier fulfillment ledger.
+     * select:false prevents tracking/customer endpoints from leaking Markaz
+     * costs, supplier identifiers, or fulfillment references.
+     */
+    supplierFulfillments: {
+      type: [supplierFulfillmentSchema],
+      default: [],
+      select: false,
+    },
 
     subtotal: { type: Number, required: true, min: 0 },
     discount: { type: Number, required: true, min: 0, default: 0 },
@@ -109,6 +189,7 @@ const orderSchema = new mongoose.Schema(
         "Balochistan",
         "Gilgit-Baltistan",
         "Islamabad Capital Territory",
+        "Azad Jammu & Kashmir",
         "KPK",
         "AJK",
         "Gilgit Baltistan",
