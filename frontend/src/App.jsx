@@ -39,7 +39,11 @@ import NotFound from "./pages/NotFound.jsx";
 const AppShell = () => {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith("/admin");
-  const showAdminTools = isAdminRoute && location.pathname !== "/admin/login";
+  const showAdminTools = [
+    "/admin/dashboard",
+    "/admin/analytics",
+    "/admin/markaz",
+  ].includes(location.pathname);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f7f7f5]">
