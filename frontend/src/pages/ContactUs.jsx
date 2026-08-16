@@ -1,5 +1,5 @@
-
 import React, { useState } from "react";
+import axios from "axios";
 import { motion } from "framer-motion";
 import {
   FaArrowRight,
@@ -9,10 +9,11 @@ import {
   FaLinkedinIn,
   FaPaperPlane,
   FaShieldAlt,
+  FaSpinner,
   FaStore,
 } from "react-icons/fa";
 
-const CONTACT_EMAIL = import.meta.env.VITE_CONTACT_EMAIL || "";
+const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
 
 const LINKEDIN_URL =
   "https://www.linkedin.com/in/syed-muharram-ali-0118a9428/";
@@ -32,9 +33,9 @@ const ContactUs = () => {
     subject: "",
     message: "",
   });
-
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -52,9 +53,7 @@ const ContactUs = () => {
       }));
     }
 
-    if (submitted) {
-      setSubmitted(false);
-    }
+    if (submitted) setSubmitted(false);
   };
 
   const validate = () => {
@@ -84,35 +83,40 @@ const ContactUs = () => {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!validate()) return;
+    if (!validate() || loading) return;
 
-    if (!CONTACT_EMAIL) {
+    try {
+      setLoading(true);
+      setErrors({});
+      setSubmitted(false);
+
+      await axios.post(`${API_BASE_URL}/email/contact`, {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        subject: formData.subject.trim(),
+        message: formData.message.trim(),
+      });
+
+      setSubmitted(true);
+      setFormData({
+        name: "",
+        email: "",
+        subject: "",
+        message: "",
+      });
+    } catch (requestError) {
+      console.error("Contact form error:", requestError);
       setErrors({
         submit:
-          "Contact email is not configured yet. Please use LinkedIn for now.",
+          requestError.response?.data?.message ||
+          "We couldn't send your message right now. Please try again.",
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    const subject = encodeURIComponent(
-      `[ShopEase] ${formData.subject.trim()}`
-    );
-
-    const body = encodeURIComponent(
-      [
-        `Name: ${formData.name.trim()}`,
-        `Email: ${formData.email.trim()}`,
-        "",
-        formData.message.trim(),
-      ].join("\n")
-    );
-
-    setSubmitted(true);
-
-    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}&body=${body}`;
   };
 
   return (
@@ -134,15 +138,13 @@ const ContactUs = () => {
 
             <h1 className="mt-7 text-4xl font-semibold tracking-[-0.05em] text-slate-950 sm:text-5xl lg:text-6xl">
               Questions?
-              <span className="block text-slate-400">
-                We’re here to help.
-              </span>
+              <span className="block text-slate-400">We’re here to help.</span>
             </h1>
 
             <p className="mt-6 max-w-xl text-base leading-8 text-slate-500">
               Whether you have a product question, need help with an order, or
-              want to discuss the ShopEase project, send a message and we’ll
-              point you in the right direction.
+              want to discuss the ShopEase project, send a message directly to
+              the ShopEase inbox.
             </p>
 
             <div className="mt-9 grid gap-3 sm:grid-cols-2">
@@ -158,10 +160,7 @@ const ContactUs = () => {
                   </div>
                   <FaArrowRight className="text-[10px] text-slate-300 transition group-hover:translate-x-1 group-hover:text-slate-700" />
                 </div>
-
-                <p className="mt-4 text-sm font-semibold text-slate-950">
-                  LinkedIn
-                </p>
+                <p className="mt-4 text-sm font-semibold text-slate-950">LinkedIn</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   Professional inquiries and project discussions.
                 </p>
@@ -179,10 +178,7 @@ const ContactUs = () => {
                   </div>
                   <FaArrowRight className="text-[10px] text-slate-300 transition group-hover:translate-x-1 group-hover:text-slate-700" />
                 </div>
-
-                <p className="mt-4 text-sm font-semibold text-slate-950">
-                  GitHub
-                </p>
+                <p className="mt-4 text-sm font-semibold text-slate-950">GitHub</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   Explore projects, code, and development work.
                 </p>
@@ -192,11 +188,11 @@ const ContactUs = () => {
             <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-xs font-medium text-slate-500">
               <span className="inline-flex items-center gap-2">
                 <FaShieldAlt className="text-violet-500" />
-                Clear communication
+                Secure server-side delivery
               </span>
               <span className="inline-flex items-center gap-2">
                 <FaCheckCircle className="text-emerald-500" />
-                No fake support details
+                Direct ShopEase inbox
               </span>
             </div>
           </motion.div>
@@ -216,7 +212,6 @@ const ContactUs = () => {
                   Tell us how we can help
                 </h2>
               </div>
-
               <div className="hidden h-12 w-12 items-center justify-center rounded-2xl bg-slate-950 text-white sm:flex">
                 <FaPaperPlane />
               </div>
@@ -225,7 +220,7 @@ const ContactUs = () => {
             {submitted && (
               <div className="mb-6 flex gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-700">
                 <FaCheckCircle className="mt-0.5 shrink-0" />
-                <span>Your email app should open with the message ready.</span>
+                <span>Your message was sent successfully to ShopEase.</span>
               </div>
             )}
 
@@ -238,9 +233,7 @@ const ContactUs = () => {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="grid gap-5 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Your name
-                  </label>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Your name</label>
                   <input
                     type="text"
                     name="name"
@@ -248,19 +241,14 @@ const ContactUs = () => {
                     onChange={handleChange}
                     placeholder="Your full name"
                     autoComplete="name"
+                    disabled={loading}
                     className={inputClass(Boolean(errors.name))}
                   />
-                  {errors.name && (
-                    <p className="mt-2 text-xs font-medium text-red-600">
-                      {errors.name}
-                    </p>
-                  )}
+                  {errors.name && <p className="mt-2 text-xs font-medium text-red-600">{errors.name}</p>}
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">
-                    Email
-                  </label>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Email</label>
                   <input
                     type="email"
                     name="email"
@@ -268,74 +256,68 @@ const ContactUs = () => {
                     onChange={handleChange}
                     placeholder="you@example.com"
                     autoComplete="email"
+                    disabled={loading}
                     className={inputClass(Boolean(errors.email))}
                   />
-                  {errors.email && (
-                    <p className="mt-2 text-xs font-medium text-red-600">
-                      {errors.email}
-                    </p>
-                  )}
+                  {errors.email && <p className="mt-2 text-xs font-medium text-red-600">{errors.email}</p>}
                 </div>
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Subject
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Subject</label>
                 <input
                   type="text"
                   name="subject"
                   value={formData.subject}
                   onChange={handleChange}
                   placeholder="What can we help you with?"
+                  disabled={loading}
                   className={inputClass(Boolean(errors.subject))}
                 />
-                {errors.subject && (
-                  <p className="mt-2 text-xs font-medium text-red-600">
-                    {errors.subject}
-                  </p>
-                )}
+                {errors.subject && <p className="mt-2 text-xs font-medium text-red-600">{errors.subject}</p>}
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Message
-                </label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">Message</label>
                 <textarea
                   name="message"
                   value={formData.message}
                   onChange={handleChange}
                   rows={6}
                   placeholder="Share the details here..."
-                  className={`${inputClass(
-                    Boolean(errors.message)
-                  )} resize-none`}
+                  disabled={loading}
+                  className={`${inputClass(Boolean(errors.message))} resize-none`}
                 />
                 <div className="mt-2 flex items-center justify-between gap-4">
                   {errors.message ? (
-                    <p className="text-xs font-medium text-red-600">
-                      {errors.message}
-                    </p>
+                    <p className="text-xs font-medium text-red-600">{errors.message}</p>
                   ) : (
                     <span />
                   )}
-                  <span className="text-[10px] text-slate-400">
-                    {formData.message.length} characters
-                  </span>
+                  <span className="text-[10px] text-slate-400">{formData.message.length} characters</span>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5 hover:bg-slate-800"
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)] transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-wait disabled:translate-y-0 disabled:bg-slate-300"
               >
-                <FaPaperPlane className="text-xs" />
-                Send message
+                {loading ? (
+                  <>
+                    <FaSpinner className="animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <FaPaperPlane className="text-xs" />
+                    Send message
+                  </>
+                )}
               </button>
 
               <p className="text-center text-[11px] leading-5 text-slate-400">
-                This form opens your email app so you stay in control of what
-                is sent.
+                Your message is sent securely through the ShopEase backend.
               </p>
             </form>
           </motion.div>
