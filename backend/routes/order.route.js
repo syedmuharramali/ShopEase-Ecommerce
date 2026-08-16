@@ -7,12 +7,10 @@ const {
   createCartOrder,
   getAllOrders,
   getOrderById,
-  trackOrder,
   updateOrderStatus,
 } = require("../controllers/order.controller.js");
+const { trackOrder } = require("../controllers/tracking.controller.js");
 
-// Cart checkout gets its own abuse protection. The existing server-level
-// limiter can continue protecting the single-item /create/:productId route.
 const cartOrderLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
