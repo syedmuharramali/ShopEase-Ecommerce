@@ -101,6 +101,43 @@ const supplierFulfillmentSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+
+    /*
+     * Customer-safe delivery details copied from the supplier/courier view.
+     * These live beside the private Markaz ledger but are only exposed through
+     * a dedicated public projection that never returns costs or supplier IDs.
+     */
+    courierName: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      default: "",
+    },
+    estimatedDeliveryMinDays: {
+      type: Number,
+      min: 1,
+      max: 90,
+      default: null,
+    },
+    estimatedDeliveryMaxDays: {
+      type: Number,
+      min: 1,
+      max: 90,
+      default: null,
+    },
+    riderName: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      default: "",
+    },
+    riderPhone: {
+      type: String,
+      trim: true,
+      maxlength: 30,
+      default: "",
+    },
+
     submittedAt: {
       type: Date,
       default: null,
@@ -164,7 +201,7 @@ const orderSchema = new mongoose.Schema(
     /*
      * Private supplier fulfillment ledger.
      * select:false prevents tracking/customer endpoints from leaking Markaz
-     * costs, supplier identifiers, or fulfillment references.
+     * costs, supplier identifiers, or fulfillment references by accident.
      */
     supplierFulfillments: {
       type: [supplierFulfillmentSchema],
