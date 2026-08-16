@@ -5,6 +5,27 @@ function normalizeEmail(value = "") {
   return String(value).trim().toLowerCase();
 }
 
+function htmlToPlainText(html = "") {
+  return String(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<\/h[1-6]>/gi, "\n\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#039;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 const sendEmail = async (options = {}) => {
   const shopEmail = normalizeEmail(process.env.EMAIL_USER);
   const emailPassword = String(process.env.EMAIL_PASS || "").trim();
@@ -16,16 +37,6 @@ const sendEmail = async (options = {}) => {
   const requestedRecipient = normalizeEmail(options.email);
   const legacyAdminEmail = normalizeEmail(process.env.ADMIN_EMAIL);
 
-  /*
-   * EMAIL_USER is the single ShopEase mailbox.
-   *
-   * - All outgoing messages are sent from EMAIL_USER.
-   * - Any message explicitly marked `toShop` is delivered to EMAIL_USER.
-   * - Existing admin-notification callers that still pass ADMIN_EMAIL (or the
-   *   old admin@shopease.com fallback) are also routed to EMAIL_USER. This
-   *   keeps ADMIN_EMAIL free to remain an admin-login/bootstrap identity rather
-   *   than a second mail destination.
-   */
   const isLegacyAdminDestination =
     requestedRecipient === "admin@shopease.com" ||
     (legacyAdminEmail && requestedRecipient === legacyAdminEmail);
@@ -47,16 +58,16 @@ const sendEmail = async (options = {}) => {
     },
   });
 
+  const html = String(options.html || "").trim();
+  const text = String(options.text || "").trim() || htmlToPlainText(html);
+
   const mailOptions = {
     from: `"ShopEase" <${shopEmail}>`,
     to: recipient,
     subject: options.subject,
-    html: options.html,
+    ...(text ? { text } : {}),
+    ...(html ? { html } : {}),
   };
-
-  if (options.text) {
-    mailOptions.text = options.text;
-  }
 
   if (options.replyTo) {
     mailOptions.replyTo = options.replyTo;
