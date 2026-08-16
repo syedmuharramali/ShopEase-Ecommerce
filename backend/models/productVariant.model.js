@@ -85,16 +85,6 @@ const productVariantSchema = new mongoose.Schema(
       default: [],
     },
 
-    /*
-     * Internal normalized representation of the
-     * complete variant combination.
-     *
-     * Example:
-     *
-     * COLOR:<valueId>|SIZE:<valueId>
-     *
-     * This is generated automatically.
-     */
     combinationKey: {
       type: String,
       trim: true,
@@ -120,6 +110,46 @@ const productVariantSchema = new mongoose.Schema(
       default: 0,
     },
 
+    /*
+     * Private supplier economics.
+     * Hidden from normal storefront queries.
+     */
+    supplierSku: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      maxlength: 140,
+      default: "",
+      select: false,
+    },
+
+    supplierCost: {
+      type: Number,
+      min: 0,
+      default: null,
+      select: false,
+    },
+
+    expectedProfit: {
+      type: Number,
+      min: 0,
+      default: null,
+      select: false,
+    },
+
+    inventoryType: {
+      type: String,
+      enum: ["internal", "external"],
+      default: "internal",
+      select: false,
+    },
+
+    supplierLastCheckedAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
     images: {
       type: [variantImageSchema],
       default: [],
@@ -141,28 +171,8 @@ const productVariantSchema = new mongoose.Schema(
   }
 );
 
-/*
- * ----------------------------------------
- * Generate normalized combination key
- * ----------------------------------------
- *
- * We sort by optionId so that:
- *
- * Color=Black + Size=40
- *
- * and:
- *
- * Size=40 + Color=Black
- *
- * produce the same key.
- */
-productVariantSchema.pre("validate", function (next) {
-  if (!Array.isArray(this.selectedOptions)) {
-    this.combinationKey = "DEFAULT";
-    return ;
-  }
-
-  if (this.selectedOptions.length === 0) {
+productVariantSchema.pre("validate", function () {
+  if (!Array.isArray(this.selectedOptions) || this.selectedOptions.length === 0) {
     this.combinationKey = "DEFAULT";
     return;
   }
@@ -172,52 +182,23 @@ productVariantSchema.pre("validate", function (next) {
       optionId: option.optionId.toString(),
       valueId: option.valueId.toString(),
     }))
-    .sort((a, b) =>
-      a.optionId.localeCompare(b.optionId)
-    );
+    .sort((a, b) => a.optionId.localeCompare(b.optionId));
 
   this.combinationKey = normalizedOptions
-    .map(
-      (option) =>
-        `${option.optionId}:${option.valueId}`
-    )
+    .map((option) => `${option.optionId}:${option.valueId}`)
     .join("|");
-
-  ;
 });
 
-/*
- * ----------------------------------------
- * Common query:
- * Get active variants for a product.
- * ----------------------------------------
- */
 productVariantSchema.index({
   product: 1,
   isActive: 1,
 });
 
-/*
- * ----------------------------------------
- * Inventory queries.
- * ----------------------------------------
- */
 productVariantSchema.index({
   product: 1,
   stock: 1,
 });
 
-/*
- * ----------------------------------------
- * Prevent duplicate variant combinations.
- *
- * Example:
- *
- * Product A + COLOR:BLACK
- *
- * can only exist once.
- * ----------------------------------------
- */
 productVariantSchema.index(
   {
     product: 1,
@@ -229,11 +210,6 @@ productVariantSchema.index(
   }
 );
 
-/*
- * ----------------------------------------
- * Only one default variant per product.
- * ----------------------------------------
- */
 productVariantSchema.index(
   {
     product: 1,

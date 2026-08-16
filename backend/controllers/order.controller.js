@@ -21,6 +21,7 @@ const ALLOWED_PROVINCES = [
   "Balochistan",
   "Gilgit-Baltistan",
   "Islamabad Capital Territory",
+  "Azad Jammu & Kashmir",
 ];
 
 const ALLOWED_PAYMENT_METHODS = ["cod", "jazzcash"];

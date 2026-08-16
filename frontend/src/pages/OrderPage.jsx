@@ -36,6 +36,7 @@ const DELIVERY_REGIONS = [
   "Balochistan",
   "Gilgit-Baltistan",
   "Islamabad Capital Territory",
+  "Azad Jammu & Kashmir",
 ];
 
 const fieldClass = (hasError = false) =>

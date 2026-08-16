@@ -108,6 +108,41 @@ const productSchema = new mongoose.Schema(
       index: true,
     },
 
+    /*
+     * Private supplier metadata.
+     *
+     * These fields are select:false so normal storefront product queries never
+     * expose supplier information or Markaz identifiers to customers.
+     */
+    supplier: {
+      type: String,
+      enum: ["internal", "markaz"],
+      default: "internal",
+      index: true,
+      select: false,
+    },
+
+    supplierProductCode: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      default: "",
+      select: false,
+    },
+
+    fulfillmentType: {
+      type: String,
+      enum: ["internal", "dropship"],
+      default: "internal",
+      select: false,
+    },
+
+    supplierLastCheckedAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -130,6 +165,11 @@ productSchema.index({
   featured: 1,
   status: 1,
   createdAt: -1,
+});
+
+productSchema.index({
+  supplier: 1,
+  status: 1,
 });
 
 module.exports = mongoose.model("Product", productSchema);

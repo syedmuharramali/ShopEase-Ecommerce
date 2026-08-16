@@ -42,6 +42,77 @@ const orderItemSchema = new mongoose.Schema(
   { _id: true }
 );
 
+const supplierFulfillmentSchema = new mongoose.Schema(
+  {
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+    },
+    variant: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ProductVariant",
+      required: true,
+    },
+    provider: {
+      type: String,
+      enum: ["markaz"],
+      required: true,
+    },
+    supplierProductCode: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    supplierSku: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+    },
+    supplierCost: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    expectedProfit: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    quantity: {
+      type: Number,
+      min: 1,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ["not_submitted", "submitted", "shipped", "delivered", "cancelled"],
+      default: "not_submitted",
+      index: true,
+    },
+    externalOrderId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    trackingId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    submittedAt: {
+      type: Date,
+      default: null,
+    },
+    lastUpdatedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true }
+);
+
 const couponSnapshotSchema = new mongoose.Schema(
   {
     couponId: { type: mongoose.Schema.Types.ObjectId, ref: "Coupon" },
@@ -83,14 +154,23 @@ const orderSchema = new mongoose.Schema(
     email: { type: String, required: true, trim: true, lowercase: true, match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"] },
     phoneNumber: { type: String, required: true, match: [/^\d{10,15}$/, "Please enter a valid phone number"] },
 
-    // Legacy/single-item fields. Kept for backward compatibility and Buy Now.
     product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", index: true },
     variant: { type: mongoose.Schema.Types.ObjectId, ref: "ProductVariant", index: true },
     variantSnapshot: { type: variantSnapshotSchema },
     quantity: { type: Number, min: 1, default: 1 },
 
-    // New cart-safe structure. New single-item orders also write one item here.
     items: { type: [orderItemSchema], default: [] },
+
+    /*
+     * Private supplier fulfillment ledger.
+     * select:false prevents tracking/customer endpoints from leaking Markaz
+     * costs, supplier identifiers, or fulfillment references.
+     */
+    supplierFulfillments: {
+      type: [supplierFulfillmentSchema],
+      default: [],
+      select: false,
+    },
 
     subtotal: { type: Number, required: true, min: 0 },
     discount: { type: Number, required: true, min: 0, default: 0 },
@@ -109,6 +189,7 @@ const orderSchema = new mongoose.Schema(
         "Balochistan",
         "Gilgit-Baltistan",
         "Islamabad Capital Territory",
+        "Azad Jammu & Kashmir",
         "KPK",
         "AJK",
         "Gilgit Baltistan",
@@ -135,6 +216,82 @@ orderSchema.pre("validate", function () {
 
   if (!hasItems && !hasLegacySingle) {
     this.invalidate("items", "Order must contain at least one product item");
+  }
+});
+
+/*
+ * Freeze supplier economics at the moment the order is created. This keeps a
+ * historical Markaz SKU/cost/profit snapshot even if the catalog is edited
+ * later. The hook stays fail-safe: if supplier models are unavailable, normal
+ * ShopEase order creation still proceeds.
+ */
+orderSchema.pre("save", async function () {
+  if (!this.isNew || (this.supplierFulfillments || []).length > 0) return;
+  if (!mongoose.models.Product || !mongoose.models.ProductVariant) return;
+
+  const sourceItems =
+    Array.isArray(this.items) && this.items.length > 0
+      ? this.items
+      : this.product && this.variant
+        ? [
+            {
+              product: this.product,
+              variant: this.variant,
+              quantity: this.quantity || 1,
+            },
+          ]
+        : [];
+
+  if (!sourceItems.length) return;
+
+  try {
+    const Product = mongoose.model("Product");
+    const ProductVariant = mongoose.model("ProductVariant");
+
+    const productIds = [...new Set(sourceItems.map((item) => String(item.product)))];
+    const variantIds = [...new Set(sourceItems.map((item) => String(item.variant)))];
+
+    const [products, variants] = await Promise.all([
+      Product.find({ _id: { $in: productIds } })
+        .select("+supplier +supplierProductCode +fulfillmentType")
+        .lean(),
+      ProductVariant.find({ _id: { $in: variantIds } })
+        .select("+supplierSku +supplierCost +expectedProfit +inventoryType")
+        .lean(),
+    ]);
+
+    const productMap = new Map(products.map((product) => [String(product._id), product]));
+    const variantMap = new Map(variants.map((variant) => [String(variant._id), variant]));
+
+    this.supplierFulfillments = sourceItems
+      .map((item) => {
+        const product = productMap.get(String(item.product));
+        const variant = variantMap.get(String(item.variant));
+
+        if (!product || !variant || product.supplier !== "markaz") return null;
+
+        return {
+          product: item.product,
+          variant: item.variant,
+          provider: "markaz",
+          supplierProductCode: product.supplierProductCode || "",
+          supplierSku: variant.supplierSku || variant.sku || "",
+          supplierCost:
+            variant.supplierCost === null || variant.supplierCost === undefined
+              ? null
+              : Number(variant.supplierCost),
+          expectedProfit:
+            variant.expectedProfit === null || variant.expectedProfit === undefined
+              ? null
+              : Number(variant.expectedProfit),
+          quantity: Math.max(1, Number(item.quantity) || 1),
+          status: "not_submitted",
+          lastUpdatedAt: new Date(),
+        };
+      })
+      .filter(Boolean);
+  } catch (error) {
+    console.error("Supplier snapshot creation error:", error);
   }
 });
 
