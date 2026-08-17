@@ -105,9 +105,7 @@ const ProductReviews = ({ productId }) => {
     syncReviewFormWithHash();
     window.addEventListener("hashchange", syncReviewFormWithHash);
 
-    return () => {
-      window.removeEventListener("hashchange", syncReviewFormWithHash);
-    };
+    return () => window.removeEventListener("hashchange", syncReviewFormWithHash);
   }, [productId]);
 
   const distributionMax = useMemo(
@@ -115,8 +113,7 @@ const ProductReviews = ({ productId }) => {
     [summary.distribution]
   );
 
-  const hasReviews =
-    Number(summary.reviewCount || 0) > 0 || reviews.length > 0;
+  const hasReviews = Number(summary.reviewCount || 0) > 0 || reviews.length > 0;
 
   useEffect(() => {
     if (loading || hasReviews || !showEmptyReviewForm) return;
@@ -198,7 +195,7 @@ const ProductReviews = ({ productId }) => {
     <form
       id="write-review"
       onSubmit={submitReview}
-      className="scroll-mt-28 rounded-[28px] border border-violet-200 bg-white p-6 shadow-[0_14px_40px_rgba(109,40,217,0.06)] sm:p-8"
+      className="scroll-mt-24 rounded-[22px] border border-violet-200 bg-white p-5 shadow-[0_14px_40px_rgba(109,40,217,0.05)] sm:p-6"
     >
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
@@ -214,7 +211,7 @@ const ProductReviews = ({ productId }) => {
         </div>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-5">
         <label className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
           Rating
         </label>
@@ -224,7 +221,7 @@ const ProductReviews = ({ productId }) => {
               key={rating}
               type="button"
               onClick={() => setForm((current) => ({ ...current, rating }))}
-              className={`flex h-11 w-11 items-center justify-center rounded-xl border transition ${
+              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                 Number(form.rating) >= rating
                   ? "border-amber-200 bg-amber-50 text-amber-500"
                   : "border-slate-200 bg-white text-slate-300 hover:border-slate-300"
@@ -237,7 +234,7 @@ const ProductReviews = ({ productId }) => {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-bold text-slate-600">Delivered order number</span>
           <input
@@ -246,7 +243,7 @@ const ProductReviews = ({ productId }) => {
             onChange={updateField}
             placeholder="ORD-20260815-..."
             autoComplete="off"
-            className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
+            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
           />
         </label>
 
@@ -258,12 +255,12 @@ const ProductReviews = ({ productId }) => {
             onChange={updateField}
             placeholder="Same contact used at checkout"
             autoComplete="off"
-            className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
+            className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
           />
         </label>
       </div>
 
-      <label className="mt-4 block">
+      <label className="mt-3 block">
         <span className="text-xs font-bold text-slate-600">Display name (optional)</span>
         <input
           name="reviewerName"
@@ -271,11 +268,11 @@ const ProductReviews = ({ productId }) => {
           onChange={updateField}
           maxLength={80}
           placeholder="Uses the order name when left blank"
-          className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
+          className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
         />
       </label>
 
-      <label className="mt-4 block">
+      <label className="mt-3 block">
         <span className="text-xs font-bold text-slate-600">Review title (optional)</span>
         <input
           name="title"
@@ -283,16 +280,14 @@ const ProductReviews = ({ productId }) => {
           onChange={updateField}
           maxLength={120}
           placeholder="A short summary"
-          className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
+          className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
         />
       </label>
 
-      <label className="mt-4 block">
+      <label className="mt-3 block">
         <span className="flex items-center justify-between gap-3 text-xs font-bold text-slate-600">
           Your review
-          <span className="font-medium text-slate-400">
-            {form.comment.length}/1500
-          </span>
+          <span className="font-medium text-slate-400">{form.comment.length}/1500</span>
         </span>
         <textarea
           name="comment"
@@ -300,7 +295,7 @@ const ProductReviews = ({ productId }) => {
           onChange={updateField}
           minLength={20}
           maxLength={1500}
-          rows={5}
+          rows={4}
           placeholder="What did you like, and what should other shoppers know?"
           className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
         />
@@ -328,7 +323,7 @@ const ProductReviews = ({ productId }) => {
       <button
         type="submit"
         disabled={submitting}
-        className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:bg-slate-400"
+        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:bg-slate-400"
       >
         {submitting ? <FaSpinner className="animate-spin" /> : <FaStar />}
         {submitting ? "Submitting..." : "Submit review"}
@@ -336,24 +331,15 @@ const ProductReviews = ({ productId }) => {
     </form>
   );
 
-  /*
-   * Keep the #reviews marker in the DOM even while hidden. ProductDetail's
-   * responsive CSS uses it to scope page-specific layout rules.
-   */
   if (loading || loadError) {
-    return <span id="reviews" className="hidden" aria-hidden="true" />;
+    return <span id="customer-reviews" className="hidden" aria-hidden="true" />;
   }
 
-  /*
-   * New products should not advertise an empty 0-review section. The review
-   * form is still available when a delivered customer explicitly chooses
-   * "Write review" from the product actions.
-   */
   if (!hasReviews) {
     if (!showEmptyReviewForm) {
       return (
         <span
-          id="reviews"
+          id="customer-reviews"
           className="hidden"
           data-empty-reviews="true"
           aria-hidden="true"
@@ -362,46 +348,45 @@ const ProductReviews = ({ productId }) => {
     }
 
     return (
-      <section className="mt-6" id="reviews" data-empty-reviews="true">
+      <section className="mt-6" id="customer-reviews" data-empty-reviews="true">
         <div className="mx-auto max-w-2xl">{reviewForm}</div>
       </section>
     );
   }
 
   return (
-    <section className="mt-10" id="reviews">
-      <div className="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+    <section className="mt-8 sm:mt-9" id="customer-reviews">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-600">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-600">
             Customer reviews
           </p>
-          <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] text-slate-950 sm:text-3xl">
+          <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] text-slate-950 sm:text-[28px]">
             Reviews from verified purchases
           </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">
             Only customers with a delivered ShopEase order can submit a review.
-            Reviews are moderated before they appear publicly.
           </p>
         </div>
 
         <a
           href="#write-review"
-          className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-violet-700"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-violet-700"
         >
           <FaStar />
           Write a review
         </a>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-        <div className="space-y-6">
-          <div className="rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8">
-            <div className="flex items-end gap-4">
-              <span className="text-5xl font-black tracking-[-0.05em] text-slate-950">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(340px,0.72fr)_minmax(0,1.28fr)]">
+        <div className="space-y-4">
+          <div className="rounded-[22px] border border-slate-200 bg-white p-5 sm:p-6">
+            <div className="flex items-end gap-3">
+              <span className="text-4xl font-black tracking-[-0.05em] text-slate-950">
                 {Number(summary.averageRating || 0).toFixed(1)}
               </span>
-              <div className="pb-1">
-                <Stars value={summary.averageRating} size="text-base" />
+              <div className="pb-0.5">
+                <Stars value={summary.averageRating} size="text-sm" />
                 <p className="mt-1 text-xs font-medium text-slate-400">
                   {summary.reviewCount || 0} approved review
                   {Number(summary.reviewCount) === 1 ? "" : "s"}
@@ -409,15 +394,15 @@ const ProductReviews = ({ productId }) => {
               </div>
             </div>
 
-            <div className="mt-7 space-y-2.5">
+            <div className="mt-5 space-y-2">
               {[5, 4, 3, 2, 1].map((rating) => {
                 const count = Number(summary.distribution?.[rating] || 0);
                 const width = `${(count / distributionMax) * 100}%`;
 
                 return (
-                  <div key={rating} className="grid grid-cols-[26px_1fr_32px] items-center gap-3">
+                  <div key={rating} className="grid grid-cols-[24px_1fr_28px] items-center gap-2.5">
                     <span className="text-xs font-bold text-slate-500">{rating}</span>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                       <div
                         className="h-full rounded-full bg-amber-400 transition-all"
                         style={{ width }}
@@ -433,8 +418,8 @@ const ProductReviews = ({ productId }) => {
           {reviewForm}
         </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8">
-          <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-5">
+        <div className="rounded-[22px] border border-slate-200 bg-white p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <h3 className="text-lg font-black tracking-tight text-slate-950">Latest reviews</h3>
               <p className="mt-1 text-xs text-slate-400">Approved verified-purchase feedback</p>
@@ -444,7 +429,7 @@ const ProductReviews = ({ productId }) => {
 
           <div className="divide-y divide-slate-100">
             {reviews.map((review) => (
-              <article key={review._id} className="py-6 first:pt-6 last:pb-0">
+              <article key={review._id} className="py-5 first:pt-5 last:pb-0">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -463,7 +448,7 @@ const ProductReviews = ({ productId }) => {
                 </div>
 
                 {review.title && (
-                  <h4 className="mt-4 text-sm font-black text-slate-900">{review.title}</h4>
+                  <h4 className="mt-3 text-sm font-black text-slate-900">{review.title}</h4>
                 )}
                 <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">
                   {review.comment}
@@ -473,12 +458,12 @@ const ProductReviews = ({ productId }) => {
           </div>
 
           {pagination.totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5">
+            <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
               <button
                 type="button"
                 onClick={() => fetchReviews(Math.max(1, pagination.page - 1))}
                 disabled={pagination.page <= 1 || loading}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 disabled:opacity-30"
+                className="rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-bold text-slate-600 disabled:opacity-30"
               >
                 Previous
               </button>
@@ -489,7 +474,7 @@ const ProductReviews = ({ productId }) => {
                 type="button"
                 onClick={() => fetchReviews(Math.min(pagination.totalPages, pagination.page + 1))}
                 disabled={pagination.page >= pagination.totalPages || loading}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 disabled:opacity-30"
+                className="rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-bold text-slate-600 disabled:opacity-30"
               >
                 Next
               </button>
