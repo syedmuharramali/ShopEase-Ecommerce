@@ -1,10 +1,9 @@
 @import "tailwindcss";
 
 /*
- * Product detail responsive layout fixes.
- *
- * Keep product/business logic untouched and only correct the storefront
- * layout problems that appeared at common laptop widths.
+ * Product detail responsive + visual-density refinements.
+ * Frontend presentation only. Product, cart, review and checkout logic stays
+ * untouched.
  */
 
 html,
@@ -13,11 +12,17 @@ body {
   overflow-x: hidden;
 }
 
-/*
- * The product page can be identified safely by the reviews section it owns.
- * Grid children need min-width: 0 or the thumbnail strip's intrinsic width
- * can force the gallery column wider and crush the purchase panel.
- */
+/* --------------------------------------------------------------------------
+   PRODUCT DETAIL — BASE LAYOUT
+   -------------------------------------------------------------------------- */
+
+main:has(#reviews) > div {
+  width: 100%;
+  max-width: 1200px;
+  min-width: 0;
+}
+
+/* Prevent intrinsic thumbnail width from crushing the purchase panel. */
 main:has(#reviews) > div > section:first-of-type > div.grid {
   min-width: 0;
   align-items: start;
@@ -33,12 +38,85 @@ main:has(#reviews) [class~="overflow-x-auto"] {
   overscroll-behavior-inline: contain;
 }
 
+/* Slightly calmer card geometry than the original oversized treatment. */
+main:has(#reviews) > div > section:first-of-type {
+  border-radius: 26px;
+  box-shadow: 0 20px 60px -34px rgb(15 23 42 / 0.25);
+}
+
+/* Product title and price should lead without dominating the whole screen. */
+main:has(#reviews) > div > section:first-of-type h1 {
+  font-size: clamp(2rem, 3vw, 2.65rem);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+
+main:has(#reviews)
+  > div
+  > section:first-of-type
+  h1
+  + p {
+  max-width: 34rem;
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+
+/* Main purchase buttons remain prominent but not oversized. */
+main:has(#reviews)
+  > div
+  > section:first-of-type
+  button[class*="min-h-14"] {
+  min-height: 50px;
+}
+
+main:has(#reviews)
+  > div
+  > section:first-of-type
+  [class*="min-h-12"] {
+  min-height: 44px;
+}
+
+/* Compact trust cards under the purchase controls. */
+main:has(#reviews)
+  > div
+  > section:first-of-type
+  div.grid.grid-cols-1.gap-3.sm\:grid-cols-3
+  > div {
+  padding: 0.8rem;
+  border-radius: 14px;
+}
+
+main:has(#reviews)
+  > div
+  > section:first-of-type
+  div.grid.grid-cols-1.gap-3.sm\:grid-cols-3
+  > div
+  p.mt-3 {
+  margin-top: 0.55rem;
+}
+
+main:has(#reviews)
+  > div
+  > section:first-of-type
+  div.grid.grid-cols-1.gap-3.sm\:grid-cols-3
+  > div
+  p.mt-1 {
+  line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   LAPTOP / DESKTOP
+   -------------------------------------------------------------------------- */
+
 /*
- * 1024–1199px is a common laptop/small-desktop range. A forced two-column
- * product layout is too tight here, so keep the gallery and purchase panel
- * comfortably stacked instead of shrinking the buying controls.
+ * 1024–1199px: stacking is more attractive than squeezing two columns into
+ * a normal small-laptop viewport.
  */
 @media (min-width: 1024px) and (max-width: 1199px) {
+  main:has(#reviews) > div {
+    max-width: 980px;
+  }
+
   main:has(#reviews) > div > section:first-of-type > div.grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -51,6 +129,15 @@ main:has(#reviews) [class~="overflow-x-auto"] {
     border-right-width: 0;
     border-bottom-width: 1px;
     border-bottom-color: rgb(226 232 240 / 0.8);
+    padding: 2rem;
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:last-child {
+    padding: 2rem 2.25rem;
   }
 
   main:has(#reviews)
@@ -65,44 +152,115 @@ main:has(#reviews) [class~="overflow-x-auto"] {
     > div.grid
     > div:first-child
     > [class~="overflow-x-auto"] {
-    max-width: 760px;
+    max-width: 680px;
     margin-inline: auto;
   }
 }
 
 /*
- * On normal/wide laptops there is enough room for two columns, but the
- * purchase panel must retain a useful minimum width. minmax(0, ...) on the
- * gallery side prevents thumbnails from dictating the grid width.
+ * 1200px+: balanced two-column composition. The image side stays generous,
+ * while the buying panel is guaranteed enough space for options and actions.
  */
 @media (min-width: 1200px) {
   main:has(#reviews) > div > section:first-of-type > div.grid {
-    grid-template-columns: minmax(0, 1.04fr) minmax(440px, 0.96fr);
+    grid-template-columns: minmax(0, 1.02fr) minmax(430px, 0.98fr);
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:first-child {
+    padding: 1.75rem;
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:last-child {
+    padding: 2rem 2.15rem;
+  }
+
+  /* Keep the gallery visually controlled instead of letting it own the page. */
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:first-child
+    > div:first-child {
+    max-width: 590px;
+    margin-inline: auto;
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:first-child
+    > [class~="overflow-x-auto"] {
+    max-width: 590px;
+    margin-inline: auto;
   }
 }
 
-/*
- * Product description + ShopEase promise should size to their own content.
- * Without start alignment CSS Grid stretches the short promise card to the
- * height of a long product description.
- */
+/* --------------------------------------------------------------------------
+   PRODUCT DESCRIPTION / PROMISE
+   -------------------------------------------------------------------------- */
+
 main:has(#reviews) > div > section:nth-of-type(2) {
   align-items: start;
+  gap: 1rem;
+  margin-top: 1.25rem;
 }
 
 main:has(#reviews) > div > section:nth-of-type(2) > * {
   min-width: 0;
   align-self: start;
   height: fit-content;
+  border-radius: 20px;
+  padding: 1.35rem 1.5rem;
 }
 
-/*
- * Review columns have very different content lengths. Keep the Latest
- * Reviews card at its natural height instead of stretching it to match the
- * rating summary + complete review form on the left.
- */
+main:has(#reviews) > div > section:nth-of-type(2) h2 {
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+main:has(#reviews) > div > section:nth-of-type(2) p {
+  line-height: 1.65;
+}
+
+@media (min-width: 1024px) {
+  main:has(#reviews) > div > section:nth-of-type(2) {
+    grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.45fr);
+  }
+
+  main:has(#reviews) > div > section:nth-of-type(2) > div:last-child {
+    position: sticky;
+    top: 96px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   REVIEWS
+   -------------------------------------------------------------------------- */
+
+#reviews {
+  margin-top: 2rem;
+}
+
+#reviews > div:first-child {
+  margin-bottom: 1.1rem;
+}
+
+#reviews > div:first-child h2 {
+  font-size: clamp(1.45rem, 2vw, 1.9rem);
+}
+
 #reviews > div.grid {
   align-items: start;
+  gap: 1rem;
 }
 
 #reviews > div.grid > * {
@@ -114,33 +272,250 @@ main:has(#reviews) > div > section:nth-of-type(2) > * {
   height: fit-content;
 }
 
-/*
- * Related products should use all available width. Three recommendations
- * should become three balanced columns rather than leaving a fake fourth
- * empty slot; four products still fit naturally on wider laptops/desktops.
- */
-@media (min-width: 1024px) {
-  #reviews + section > div.grid {
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+#reviews form,
+#reviews > div.grid > div:last-child,
+#reviews > div.grid > div:first-child > div:first-child {
+  border-radius: 20px;
+}
+
+#reviews form {
+  padding: 1.25rem;
+}
+
+#reviews form input {
+  height: 44px;
+}
+
+#reviews form textarea {
+  min-height: 116px;
+}
+
+#reviews form button[type="submit"] {
+  min-height: 44px;
+}
+
+#reviews > div.grid > div:last-child {
+  padding: 1.35rem;
+}
+
+@media (min-width: 1280px) {
+  #reviews > div.grid {
+    grid-template-columns: minmax(360px, 0.72fr) minmax(0, 1.28fr);
   }
 }
 
-/*
- * Mobile safeguards: never let gallery thumbnails or action content create
- * horizontal page scrolling, while keeping the thumbnail strip itself
- * intentionally scrollable.
- */
+/* --------------------------------------------------------------------------
+   RELATED PRODUCTS
+   -------------------------------------------------------------------------- */
+
+#reviews + section {
+  margin-top: 2rem;
+}
+
+@media (min-width: 1024px) {
+  #reviews + section > div.grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 285px));
+    justify-content: start;
+    gap: 1rem;
+  }
+
+  #reviews + section article {
+    border-radius: 20px;
+  }
+
+  #reviews + section article > div {
+    padding: 1rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   MOBILE
+   -------------------------------------------------------------------------- */
+
 @media (max-width: 639px) {
   main:has(#reviews) > div {
     min-width: 0;
+    padding-inline: 0.75rem;
+    padding-top: 1rem;
+  }
+
+  main:has(#reviews) > div > nav {
+    margin-bottom: 0.9rem;
+    font-size: 0.78rem;
+  }
+
+  main:has(#reviews) > div > section:first-of-type {
+    border-radius: 20px;
   }
 
   main:has(#reviews) > div > section:first-of-type > div.grid > * {
     overflow: visible;
   }
 
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:first-child {
+    padding: 0.75rem;
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:last-child {
+    padding: 1.1rem;
+  }
+
+  main:has(#reviews) > div > section:first-of-type h1 {
+    margin-top: 0.9rem;
+    font-size: clamp(1.75rem, 8vw, 2.15rem);
+    line-height: 1.03;
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    h1
+    + p {
+    margin-top: 0.7rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
+  }
+
   main:has(#reviews) [class~="overflow-x-auto"] {
     overflow-x: auto;
     scrollbar-width: thin;
+  }
+
+  /* Smaller thumbnails make the gallery feel much lighter on phones. */
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    [class~="overflow-x-auto"]
+    button {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+  }
+
+  /* Main actions stay full-width and easy to tap. */
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    button[class*="min-h-14"] {
+    min-height: 48px;
+  }
+
+  /* Secondary actions become a compact three-button row instead of a tall
+     stack of full-width controls. */
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    div.mt-3.grid.gap-3.sm\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    div.mt-3.grid.gap-3.sm\:grid-cols-3
+    > * {
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 0.45rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    line-height: 1.15;
+  }
+
+  /* Trust points become compact tiles on normal phones. */
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    div.mt-6.grid.grid-cols-1.gap-3.sm\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    div.mt-6.grid.grid-cols-1.gap-3.sm\:grid-cols-3
+    > div {
+    padding: 0.65rem;
+    border-radius: 12px;
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    div.mt-6.grid.grid-cols-1.gap-3.sm\:grid-cols-3
+    > div
+    p.mt-3 {
+    margin-top: 0.4rem;
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    div.mt-6.grid.grid-cols-1.gap-3.sm\:grid-cols-3
+    > div
+    p.mt-1 {
+    margin-top: 0.2rem;
+    font-size: 0.62rem;
+    line-height: 1.3;
+  }
+
+  main:has(#reviews) > div > section:nth-of-type(2) {
+    margin-top: 0.8rem;
+    gap: 0.7rem;
+  }
+
+  main:has(#reviews) > div > section:nth-of-type(2) > * {
+    border-radius: 16px;
+    padding: 1rem;
+  }
+
+  #reviews {
+    margin-top: 1.5rem;
+  }
+
+  #reviews > div:first-child {
+    gap: 0.8rem;
+  }
+
+  #reviews form,
+  #reviews > div.grid > div:last-child,
+  #reviews > div.grid > div:first-child > div:first-child {
+    border-radius: 16px;
+  }
+
+  #reviews form,
+  #reviews > div.grid > div:last-child {
+    padding: 1rem;
+  }
+
+  #reviews + section {
+    margin-top: 1.5rem;
+  }
+}
+
+/* Tiny phones get a two-column trust/action treatment instead of squeezing
+   three labels into unreadable widths. */
+@media (max-width: 359px) {
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    div.mt-3.grid.gap-3.sm\:grid-cols-3,
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    div.mt-6.grid.grid-cols-1.gap-3.sm\:grid-cols-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
