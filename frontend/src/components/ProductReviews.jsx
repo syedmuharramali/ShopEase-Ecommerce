@@ -56,6 +56,7 @@ const ProductReviews = ({ productId }) => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState(null);
+  const [showEmptyReviewForm, setShowEmptyReviewForm] = useState(false);
 
   const fetchReviews = useCallback(
     async (page = 1) => {
@@ -96,10 +97,39 @@ const ProductReviews = ({ productId }) => {
     fetchReviews(1);
   }, [fetchReviews]);
 
+  useEffect(() => {
+    const syncReviewFormWithHash = () => {
+      setShowEmptyReviewForm(window.location.hash === "#write-review");
+    };
+
+    syncReviewFormWithHash();
+    window.addEventListener("hashchange", syncReviewFormWithHash);
+
+    return () => {
+      window.removeEventListener("hashchange", syncReviewFormWithHash);
+    };
+  }, [productId]);
+
   const distributionMax = useMemo(
     () => Math.max(1, ...Object.values(summary.distribution || {}).map(Number)),
     [summary.distribution]
   );
+
+  const hasReviews =
+    Number(summary.reviewCount || 0) > 0 || reviews.length > 0;
+
+  useEffect(() => {
+    if (loading || hasReviews || !showEmptyReviewForm) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("write-review")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [hasReviews, loading, showEmptyReviewForm]);
 
   const updateField = (event) => {
     const { name, value } = event.target;
@@ -164,6 +194,180 @@ const ProductReviews = ({ productId }) => {
     }
   };
 
+  const reviewForm = (
+    <form
+      id="write-review"
+      onSubmit={submitReview}
+      className="scroll-mt-28 rounded-[28px] border border-violet-200 bg-white p-6 shadow-[0_14px_40px_rgba(109,40,217,0.06)] sm:p-8"
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+          <FaShieldAlt />
+        </div>
+        <div>
+          <h3 className="text-lg font-black tracking-tight text-slate-950">
+            Write a verified review
+          </h3>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Purchased this product? Choose your stars below, then verify your delivered order with the order number and checkout email or phone.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <label className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+          Rating
+        </label>
+        <div className="mt-2 flex gap-2">
+          {[1, 2, 3, 4, 5].map((rating) => (
+            <button
+              key={rating}
+              type="button"
+              onClick={() => setForm((current) => ({ ...current, rating }))}
+              className={`flex h-11 w-11 items-center justify-center rounded-xl border transition ${
+                Number(form.rating) >= rating
+                  ? "border-amber-200 bg-amber-50 text-amber-500"
+                  : "border-slate-200 bg-white text-slate-300 hover:border-slate-300"
+              }`}
+              aria-label={`${rating} star rating`}
+            >
+              <FaStar />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-xs font-bold text-slate-600">Delivered order number</span>
+          <input
+            name="orderNumber"
+            value={form.orderNumber}
+            onChange={updateField}
+            placeholder="ORD-20260815-..."
+            autoComplete="off"
+            className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-bold text-slate-600">Checkout email or phone</span>
+          <input
+            name="contact"
+            value={form.contact}
+            onChange={updateField}
+            placeholder="Same contact used at checkout"
+            autoComplete="off"
+            className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
+          />
+        </label>
+      </div>
+
+      <label className="mt-4 block">
+        <span className="text-xs font-bold text-slate-600">Display name (optional)</span>
+        <input
+          name="reviewerName"
+          value={form.reviewerName}
+          onChange={updateField}
+          maxLength={80}
+          placeholder="Uses the order name when left blank"
+          className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
+        />
+      </label>
+
+      <label className="mt-4 block">
+        <span className="text-xs font-bold text-slate-600">Review title (optional)</span>
+        <input
+          name="title"
+          value={form.title}
+          onChange={updateField}
+          maxLength={120}
+          placeholder="A short summary"
+          className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
+        />
+      </label>
+
+      <label className="mt-4 block">
+        <span className="flex items-center justify-between gap-3 text-xs font-bold text-slate-600">
+          Your review
+          <span className="font-medium text-slate-400">
+            {form.comment.length}/1500
+          </span>
+        </span>
+        <textarea
+          name="comment"
+          value={form.comment}
+          onChange={updateField}
+          minLength={20}
+          maxLength={1500}
+          rows={5}
+          placeholder="What did you like, and what should other shoppers know?"
+          className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
+        />
+      </label>
+
+      {submitMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -3 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mt-4 flex gap-2 rounded-xl border px-4 py-3 text-sm font-medium ${
+            submitMessage.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-rose-200 bg-rose-50 text-rose-700"
+          }`}
+        >
+          {submitMessage.type === "success" ? (
+            <FaCheckCircle className="mt-0.5 shrink-0" />
+          ) : (
+            <FaLock className="mt-0.5 shrink-0" />
+          )}
+          <span>{submitMessage.text}</span>
+        </motion.div>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:bg-slate-400"
+      >
+        {submitting ? <FaSpinner className="animate-spin" /> : <FaStar />}
+        {submitting ? "Submitting..." : "Submit review"}
+      </button>
+    </form>
+  );
+
+  /*
+   * Keep the #reviews marker in the DOM even while hidden. ProductDetail's
+   * responsive CSS uses it to scope page-specific layout rules.
+   */
+  if (loading || loadError) {
+    return <span id="reviews" className="hidden" aria-hidden="true" />;
+  }
+
+  /*
+   * New products should not advertise an empty 0-review section. The review
+   * form is still available when a delivered customer explicitly chooses
+   * "Write review" from the product actions.
+   */
+  if (!hasReviews) {
+    if (!showEmptyReviewForm) {
+      return (
+        <span
+          id="reviews"
+          className="hidden"
+          data-empty-reviews="true"
+          aria-hidden="true"
+        />
+      );
+    }
+
+    return (
+      <section className="mt-6" id="reviews" data-empty-reviews="true">
+        <div className="mx-auto max-w-2xl">{reviewForm}</div>
+      </section>
+    );
+  }
+
   return (
     <section className="mt-10" id="reviews">
       <div className="mb-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -226,147 +430,7 @@ const ProductReviews = ({ productId }) => {
             </div>
           </div>
 
-          <form
-            id="write-review"
-            onSubmit={submitReview}
-            className="scroll-mt-28 rounded-[28px] border border-violet-200 bg-white p-6 shadow-[0_14px_40px_rgba(109,40,217,0.06)] sm:p-8"
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                <FaShieldAlt />
-              </div>
-              <div>
-                <h3 className="text-lg font-black tracking-tight text-slate-950">
-                  Write a verified review
-                </h3>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Purchased this product? Choose your stars below, then verify your delivered order with the order number and checkout email or phone.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <label className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                Rating
-              </label>
-              <div className="mt-2 flex gap-2">
-                {[1, 2, 3, 4, 5].map((rating) => (
-                  <button
-                    key={rating}
-                    type="button"
-                    onClick={() =>
-                      setForm((current) => ({ ...current, rating }))
-                    }
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl border transition ${
-                      Number(form.rating) >= rating
-                        ? "border-amber-200 bg-amber-50 text-amber-500"
-                        : "border-slate-200 bg-white text-slate-300 hover:border-slate-300"
-                    }`}
-                    aria-label={`${rating} star rating`}
-                  >
-                    <FaStar />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <label className="block">
-                <span className="text-xs font-bold text-slate-600">Delivered order number</span>
-                <input
-                  name="orderNumber"
-                  value={form.orderNumber}
-                  onChange={updateField}
-                  placeholder="ORD-20260815-..."
-                  autoComplete="off"
-                  className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
-                />
-              </label>
-
-              <label className="block">
-                <span className="text-xs font-bold text-slate-600">Checkout email or phone</span>
-                <input
-                  name="contact"
-                  value={form.contact}
-                  onChange={updateField}
-                  placeholder="Same contact used at checkout"
-                  autoComplete="off"
-                  className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
-                />
-              </label>
-            </div>
-
-            <label className="mt-4 block">
-              <span className="text-xs font-bold text-slate-600">Display name (optional)</span>
-              <input
-                name="reviewerName"
-                value={form.reviewerName}
-                onChange={updateField}
-                maxLength={80}
-                placeholder="Uses the order name when left blank"
-                className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
-              />
-            </label>
-
-            <label className="mt-4 block">
-              <span className="text-xs font-bold text-slate-600">Review title (optional)</span>
-              <input
-                name="title"
-                value={form.title}
-                onChange={updateField}
-                maxLength={120}
-                placeholder="A short summary"
-                className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
-              />
-            </label>
-
-            <label className="mt-4 block">
-              <span className="flex items-center justify-between gap-3 text-xs font-bold text-slate-600">
-                Your review
-                <span className="font-medium text-slate-400">
-                  {form.comment.length}/1500
-                </span>
-              </span>
-              <textarea
-                name="comment"
-                value={form.comment}
-                onChange={updateField}
-                minLength={20}
-                maxLength={1500}
-                rows={5}
-                placeholder="What did you like, and what should other shoppers know?"
-                className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-50"
-              />
-            </label>
-
-            {submitMessage && (
-              <motion.div
-                initial={{ opacity: 0, y: -3 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`mt-4 flex gap-2 rounded-xl border px-4 py-3 text-sm font-medium ${
-                  submitMessage.type === "success"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-rose-200 bg-rose-50 text-rose-700"
-                }`}
-              >
-                {submitMessage.type === "success" ? (
-                  <FaCheckCircle className="mt-0.5 shrink-0" />
-                ) : (
-                  <FaLock className="mt-0.5 shrink-0" />
-                )}
-                <span>{submitMessage.text}</span>
-              </motion.div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-bold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:bg-slate-400"
-            >
-              {submitting ? <FaSpinner className="animate-spin" /> : <FaStar />}
-              {submitting ? "Submitting..." : "Submit review"}
-            </button>
-          </form>
+          {reviewForm}
         </div>
 
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 sm:p-8">
@@ -378,59 +442,35 @@ const ProductReviews = ({ productId }) => {
             <FaCheckCircle className="text-emerald-500" />
           </div>
 
-          {loading ? (
-            <div className="space-y-4 py-6">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="animate-pulse rounded-2xl border border-slate-100 p-5">
-                  <div className="h-4 w-28 rounded bg-slate-100" />
-                  <div className="mt-4 h-3 w-full rounded bg-slate-100" />
-                  <div className="mt-2 h-3 w-4/5 rounded bg-slate-100" />
-                </div>
-              ))}
-            </div>
-          ) : loadError ? (
-            <p className="py-8 text-sm text-slate-500">{loadError}</p>
-          ) : reviews.length === 0 ? (
-            <div className="py-14 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-300">
-                <FaStar className="text-xl" />
-              </div>
-              <h4 className="mt-4 font-bold text-slate-900">No approved reviews yet</h4>
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                Delivered customers can be the first to share verified feedback.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {reviews.map((review) => (
-                <article key={review._id} className="py-6 first:pt-6 last:pb-0">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-bold text-slate-950">{review.reviewerName}</p>
-                        {review.verifiedPurchase && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-700">
-                            <FaCheckCircle className="text-[9px]" /> Verified purchase
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-2 flex items-center gap-3">
-                        <Stars value={review.rating} />
-                        <span className="text-xs text-slate-400">{formatDate(review.createdAt)}</span>
-                      </div>
+          <div className="divide-y divide-slate-100">
+            {reviews.map((review) => (
+              <article key={review._id} className="py-6 first:pt-6 last:pb-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold text-slate-950">{review.reviewerName}</p>
+                      {review.verifiedPurchase && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-emerald-700">
+                          <FaCheckCircle className="text-[9px]" /> Verified purchase
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex items-center gap-3">
+                      <Stars value={review.rating} />
+                      <span className="text-xs text-slate-400">{formatDate(review.createdAt)}</span>
                     </div>
                   </div>
+                </div>
 
-                  {review.title && (
-                    <h4 className="mt-4 text-sm font-black text-slate-900">{review.title}</h4>
-                  )}
-                  <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">
-                    {review.comment}
-                  </p>
-                </article>
-              ))}
-            </div>
-          )}
+                {review.title && (
+                  <h4 className="mt-4 text-sm font-black text-slate-900">{review.title}</h4>
+                )}
+                <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">
+                  {review.comment}
+                </p>
+              </article>
+            ))}
+          </div>
 
           {pagination.totalPages > 1 && (
             <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-5">
