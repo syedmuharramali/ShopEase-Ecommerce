@@ -14,6 +14,12 @@ function cleanUrl(value = "") {
   return String(value).trim().replace(/\/+$/, "");
 }
 
+function isLocalUrl(value = "") {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(
+    cleanUrl(value)
+  );
+}
+
 function assertProductionConfig() {
   if (!isProduction) return;
 
@@ -24,15 +30,14 @@ function assertProductionConfig() {
     throw new Error("FRONTEND_URL must be configured in production");
   }
 
-  if (!backendUrl) {
-    throw new Error("BACKEND_URL must be configured in production");
-  }
-
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(frontendUrl)) {
+  if (isLocalUrl(frontendUrl)) {
     throw new Error("FRONTEND_URL cannot point to localhost in production");
   }
 
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(backendUrl)) {
+  // BACKEND_URL is only required by integrations that need a public callback
+  // URL (for example JazzCash). Do not block the whole API from starting when
+  // those optional integrations are disabled.
+  if (backendUrl && isLocalUrl(backendUrl)) {
     throw new Error("BACKEND_URL cannot point to localhost in production");
   }
 }
