@@ -22,7 +22,6 @@ main:has(#reviews) > div {
   min-width: 0;
 }
 
-/* Prevent intrinsic thumbnail width from crushing the purchase panel. */
 main:has(#reviews) > div > section:first-of-type > div.grid {
   min-width: 0;
   align-items: start;
@@ -38,45 +37,31 @@ main:has(#reviews) [class~="overflow-x-auto"] {
   overscroll-behavior-inline: contain;
 }
 
-/* Slightly calmer card geometry than the original oversized treatment. */
 main:has(#reviews) > div > section:first-of-type {
   border-radius: 26px;
   box-shadow: 0 20px 60px -34px rgb(15 23 42 / 0.25);
 }
 
-/* Product title and price should lead without dominating the whole screen. */
 main:has(#reviews) > div > section:first-of-type h1 {
   font-size: clamp(2rem, 3vw, 2.65rem);
   line-height: 1.04;
   letter-spacing: -0.035em;
 }
 
-main:has(#reviews)
-  > div
-  > section:first-of-type
-  h1
-  + p {
+main:has(#reviews) > div > section:first-of-type h1 + p {
   max-width: 34rem;
   font-size: 0.94rem;
   line-height: 1.65;
 }
 
-/* Main purchase buttons remain prominent but not oversized. */
-main:has(#reviews)
-  > div
-  > section:first-of-type
-  button[class*="min-h-14"] {
+main:has(#reviews) > div > section:first-of-type button[class*="min-h-14"] {
   min-height: 50px;
 }
 
-main:has(#reviews)
-  > div
-  > section:first-of-type
-  [class*="min-h-12"] {
+main:has(#reviews) > div > section:first-of-type [class*="min-h-12"] {
   min-height: 44px;
 }
 
-/* Compact trust cards under the purchase controls. */
 main:has(#reviews)
   > div
   > section:first-of-type
@@ -104,14 +89,6 @@ main:has(#reviews)
   line-height: 1.4;
 }
 
-/* --------------------------------------------------------------------------
-   LAPTOP / DESKTOP
-   -------------------------------------------------------------------------- */
-
-/*
- * 1024–1199px: stacking is more attractive than squeezing two columns into
- * a normal small-laptop viewport.
- */
 @media (min-width: 1024px) and (max-width: 1199px) {
   main:has(#reviews) > div {
     max-width: 980px;
@@ -121,22 +98,14 @@ main:has(#reviews)
     grid-template-columns: minmax(0, 1fr);
   }
 
-  main:has(#reviews)
-    > div
-    > section:first-of-type
-    > div.grid
-    > div:first-child {
+  main:has(#reviews) > div > section:first-of-type > div.grid > div:first-child {
     border-right-width: 0;
     border-bottom-width: 1px;
     border-bottom-color: rgb(226 232 240 / 0.8);
     padding: 2rem;
   }
 
-  main:has(#reviews)
-    > div
-    > section:first-of-type
-    > div.grid
-    > div:last-child {
+  main:has(#reviews) > div > section:first-of-type > div.grid > div:last-child {
     padding: 2rem 2.25rem;
   }
 
@@ -157,42 +126,25 @@ main:has(#reviews)
   }
 }
 
-/*
- * 1200px+: balanced two-column composition. The image side stays generous,
- * while the buying panel is guaranteed enough space for options and actions.
- */
 @media (min-width: 1200px) {
   main:has(#reviews) > div > section:first-of-type > div.grid {
     grid-template-columns: minmax(0, 1.02fr) minmax(430px, 0.98fr);
   }
 
-  main:has(#reviews)
-    > div
-    > section:first-of-type
-    > div.grid
-    > div:first-child {
+  main:has(#reviews) > div > section:first-of-type > div.grid > div:first-child {
     padding: 1.75rem;
   }
 
-  main:has(#reviews)
-    > div
-    > section:first-of-type
-    > div.grid
-    > div:last-child {
+  main:has(#reviews) > div > section:first-of-type > div.grid > div:last-child {
     padding: 2rem 2.15rem;
   }
 
-  /* Keep the gallery visually controlled instead of letting it own the page. */
   main:has(#reviews)
     > div
     > section:first-of-type
     > div.grid
     > div:first-child
-    > div:first-child {
-    max-width: 590px;
-    margin-inline: auto;
-  }
-
+    > div:first-child,
   main:has(#reviews)
     > div
     > section:first-of-type
@@ -203,10 +155,6 @@ main:has(#reviews)
     margin-inline: auto;
   }
 }
-
-/* --------------------------------------------------------------------------
-   PRODUCT DESCRIPTION / PROMISE
-   -------------------------------------------------------------------------- */
 
 main:has(#reviews) > div > section:nth-of-type(2) {
   align-items: start;
@@ -241,10 +189,6 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
     top: 96px;
   }
 }
-
-/* --------------------------------------------------------------------------
-   REVIEWS
-   -------------------------------------------------------------------------- */
 
 #reviews {
   margin-top: 2rem;
@@ -304,10 +248,6 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
   }
 }
 
-/* --------------------------------------------------------------------------
-   RELATED PRODUCTS
-   -------------------------------------------------------------------------- */
-
 #reviews + section {
   margin-top: 2rem;
 }
@@ -327,10 +267,6 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
     padding: 1rem;
   }
 }
-
-/* --------------------------------------------------------------------------
-   MOBILE
-   -------------------------------------------------------------------------- */
 
 @media (max-width: 639px) {
   main:has(#reviews) > div {
@@ -352,19 +288,11 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
     overflow: visible;
   }
 
-  main:has(#reviews)
-    > div
-    > section:first-of-type
-    > div.grid
-    > div:first-child {
+  main:has(#reviews) > div > section:first-of-type > div.grid > div:first-child {
     padding: 0.75rem;
   }
 
-  main:has(#reviews)
-    > div
-    > section:first-of-type
-    > div.grid
-    > div:last-child {
+  main:has(#reviews) > div > section:first-of-type > div.grid > div:last-child {
     padding: 1.1rem;
   }
 
@@ -374,11 +302,7 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
     line-height: 1.03;
   }
 
-  main:has(#reviews)
-    > div
-    > section:first-of-type
-    h1
-    + p {
+  main:has(#reviews) > div > section:first-of-type h1 + p {
     margin-top: 0.7rem;
     font-size: 0.875rem;
     line-height: 1.55;
@@ -389,7 +313,6 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
     scrollbar-width: thin;
   }
 
-  /* Smaller thumbnails make the gallery feel much lighter on phones. */
   main:has(#reviews)
     > div
     > section:first-of-type
@@ -400,16 +323,10 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
     border-radius: 12px;
   }
 
-  /* Main actions stay full-width and easy to tap. */
-  main:has(#reviews)
-    > div
-    > section:first-of-type
-    button[class*="min-h-14"] {
+  main:has(#reviews) > div > section:first-of-type button[class*="min-h-14"] {
     min-height: 48px;
   }
 
-  /* Secondary actions become a compact three-button row instead of a tall
-     stack of full-width controls. */
   main:has(#reviews)
     > div
     > section:first-of-type
@@ -431,7 +348,6 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
     line-height: 1.15;
   }
 
-  /* Trust points become compact tiles on normal phones. */
   main:has(#reviews)
     > div
     > section:first-of-type
@@ -505,8 +421,6 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
   }
 }
 
-/* Tiny phones get a two-column trust/action treatment instead of squeezing
-   three labels into unreadable widths. */
 @media (max-width: 359px) {
   main:has(#reviews)
     > div
@@ -517,5 +431,244 @@ main:has(#reviews) > div > section:nth-of-type(2) p {
     > section:first-of-type
     div.mt-6.grid.grid-cols-1.gap-3.sm\:grid-cols-3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   HOMEPAGE — SCALE, RHYTHM AND RESPONSIVENESS
+   --------------------------------------------------------------------------
+   The homepage stays intentionally long. These rules simply stop every
+   section from competing at the same oversized visual intensity.
+ */
+
+main:has(> section:first-child form input[type="search"]) > section:not(:first-child) > div {
+  max-width: 1200px;
+}
+
+/* Hero: still dramatic, but more usable on a normal 1366px laptop. */
+main:has(> section:first-child form input[type="search"])
+  > section:first-child
+  > div:nth-of-type(4) {
+  min-height: 600px;
+  max-width: 1200px;
+  gap: 2rem;
+}
+
+main:has(> section:first-child form input[type="search"])
+  > section:first-child
+  h1 {
+  font-size: clamp(3rem, 5.2vw, 4.5rem);
+  line-height: 0.96;
+}
+
+main:has(> section:first-child form input[type="search"])
+  > section:first-child
+  h1
+  + p {
+  margin-top: 1.25rem;
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+main:has(> section:first-child form input[type="search"])
+  > section:first-child
+  form {
+  margin-top: 1.4rem;
+  border-radius: 17px;
+}
+
+/* The visual product collage should support the hero rather than overpower it. */
+@media (min-width: 1024px) {
+  main:has(> section:first-child form input[type="search"])
+    > section:first-child
+    > div:nth-of-type(4)
+    > div:last-child {
+    min-height: 535px;
+    max-width: 535px;
+  }
+}
+
+/* Compact the trust strip directly beneath the hero. */
+main:has(> section:first-child form input[type="search"])
+  > section:first-child
+  > div:last-child
+  > div
+  > div {
+  padding-block: 1.05rem;
+}
+
+main:has(> section:first-child form input[type="search"])
+  > section:first-child
+  > div:last-child
+  > div
+  > div
+  > div:first-child {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+}
+
+/* Section headings should establish hierarchy without becoming billboard size. */
+main:has(> section:first-child form input[type="search"])
+  > section:not(:first-child)
+  h2 {
+  line-height: 1.03;
+}
+
+@media (min-width: 1024px) {
+  main:has(> section:first-child form input[type="search"])
+    > section:not(:first-child)
+    h2[class*="lg:text-5xl"],
+  main:has(> section:first-child form input[type="search"])
+    > section:not(:first-child)
+    h2[class*="sm:text-5xl"] {
+    font-size: 2.6rem;
+  }
+}
+
+/* Category cards remain cinematic but no longer consume most of a viewport. */
+main:has(> section:first-child form input[type="search"])
+  a[class*="min-h-[330px]"] {
+  min-height: 285px;
+  border-radius: 24px;
+}
+
+main:has(> section:first-child form input[type="search"])
+  a[class*="min-h-[330px]"]
+  > div:last-child {
+  min-height: 285px;
+  padding: 1.25rem;
+}
+
+/* Editorial cards and lifestyle block share the calmer product-detail geometry. */
+main:has(> section:first-child form input[type="search"])
+  a[class*="rounded-[38px]"],
+main:has(> section:first-child form input[type="search"])
+  div[class*="rounded-[42px]"] {
+  border-radius: 24px;
+}
+
+/* Long homepage, tighter rhythm: preserve all sections while reducing dead air. */
+@media (min-width: 1024px) {
+  main:has(> section:first-child form input[type="search"])
+    > section:not(:first-child)
+    > div[class*="py-28"] {
+    padding-top: 5rem;
+    padding-bottom: 5rem;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    > section:last-child
+    > div {
+    padding-top: 5.5rem;
+    padding-bottom: 5.5rem;
+  }
+}
+
+/* Trust/experience tiles should read as supporting information, not hero cards. */
+main:has(> section:first-child form input[type="search"])
+  div[class*="rounded-[30px]"][class*="border-slate-200"][class*="bg-white"] {
+  border-radius: 20px;
+}
+
+/* The lifestyle image is below the fold: avoid making it feel like another hero. */
+@media (min-width: 1024px) {
+  main:has(> section:first-child form input[type="search"])
+    img[src="/home/shopease-lifestyle.png"]
+    + div {
+    pointer-events: none;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    img[src="/home/shopease-lifestyle.png"]
+    ~ div:last-child {
+    border-radius: 14px;
+  }
+}
+
+/* Mobile homepage: keep the wow factor, remove the oversized feeling. */
+@media (max-width: 639px) {
+  main:has(> section:first-child form input[type="search"])
+    > section:first-child
+    > div:nth-of-type(4) {
+    min-height: auto;
+    gap: 1.2rem;
+    padding-top: 2.4rem;
+    padding-bottom: 2.2rem;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    > section:first-child
+    h1 {
+    margin-top: 1.15rem;
+    font-size: clamp(2.65rem, 13vw, 3.45rem);
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    > section:first-child
+    h1
+    + p {
+    font-size: 0.92rem;
+    line-height: 1.65;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    > section:first-child
+    form
+    > div {
+    gap: 0.25rem;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    > section:first-child
+    form
+    button {
+    padding-inline: 0.85rem;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    > section:first-child
+    > div:nth-of-type(4)
+    > div:last-child {
+    min-height: 410px;
+    max-width: 430px;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    > section:not(:first-child)
+    > div {
+    padding-top: 3.5rem;
+    padding-bottom: 3.5rem;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    a[class*="min-h-[330px]"] {
+    min-height: 245px;
+    border-radius: 20px;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    a[class*="min-h-[330px]"]
+    > div:last-child {
+    min-height: 245px;
+    padding: 1rem;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    a[class*="min-h-[330px]"]
+    h3 {
+    font-size: 1.3rem;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    div[class*="rounded-[42px]"] {
+    border-radius: 20px;
+  }
+
+  main:has(> section:first-child form input[type="search"])
+    img[src="/home/shopease-lifestyle.png"]
+    parent {
+    min-height: 360px;
   }
 }
