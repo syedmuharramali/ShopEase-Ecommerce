@@ -1,1 +1,146 @@
 @import "tailwindcss";
+
+/*
+ * Product detail responsive layout fixes.
+ *
+ * Keep product/business logic untouched and only correct the storefront
+ * layout problems that appeared at common laptop widths.
+ */
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/*
+ * The product page can be identified safely by the reviews section it owns.
+ * Grid children need min-width: 0 or the thumbnail strip's intrinsic width
+ * can force the gallery column wider and crush the purchase panel.
+ */
+main:has(#reviews) > div > section:first-of-type > div.grid {
+  min-width: 0;
+  align-items: start;
+}
+
+main:has(#reviews) > div > section:first-of-type > div.grid > * {
+  min-width: 0;
+}
+
+main:has(#reviews) [class~="overflow-x-auto"] {
+  min-width: 0;
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+
+/*
+ * 1024–1199px is a common laptop/small-desktop range. A forced two-column
+ * product layout is too tight here, so keep the gallery and purchase panel
+ * comfortably stacked instead of shrinking the buying controls.
+ */
+@media (min-width: 1024px) and (max-width: 1199px) {
+  main:has(#reviews) > div > section:first-of-type > div.grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:first-child {
+    border-right-width: 0;
+    border-bottom-width: 1px;
+    border-bottom-color: rgb(226 232 240 / 0.8);
+  }
+
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:first-child
+    > div:first-child,
+  main:has(#reviews)
+    > div
+    > section:first-of-type
+    > div.grid
+    > div:first-child
+    > [class~="overflow-x-auto"] {
+    max-width: 760px;
+    margin-inline: auto;
+  }
+}
+
+/*
+ * On normal/wide laptops there is enough room for two columns, but the
+ * purchase panel must retain a useful minimum width. minmax(0, ...) on the
+ * gallery side prevents thumbnails from dictating the grid width.
+ */
+@media (min-width: 1200px) {
+  main:has(#reviews) > div > section:first-of-type > div.grid {
+    grid-template-columns: minmax(0, 1.04fr) minmax(440px, 0.96fr);
+  }
+}
+
+/*
+ * Product description + ShopEase promise should size to their own content.
+ * Without start alignment CSS Grid stretches the short promise card to the
+ * height of a long product description.
+ */
+main:has(#reviews) > div > section:nth-of-type(2) {
+  align-items: start;
+}
+
+main:has(#reviews) > div > section:nth-of-type(2) > * {
+  min-width: 0;
+  align-self: start;
+  height: fit-content;
+}
+
+/*
+ * Review columns have very different content lengths. Keep the Latest
+ * Reviews card at its natural height instead of stretching it to match the
+ * rating summary + complete review form on the left.
+ */
+#reviews > div.grid {
+  align-items: start;
+}
+
+#reviews > div.grid > * {
+  min-width: 0;
+  align-self: start;
+}
+
+#reviews > div.grid > div:last-child {
+  height: fit-content;
+}
+
+/*
+ * Related products should use all available width. Three recommendations
+ * should become three balanced columns rather than leaving a fake fourth
+ * empty slot; four products still fit naturally on wider laptops/desktops.
+ */
+@media (min-width: 1024px) {
+  #reviews + section > div.grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+}
+
+/*
+ * Mobile safeguards: never let gallery thumbnails or action content create
+ * horizontal page scrolling, while keeping the thumbnail strip itself
+ * intentionally scrollable.
+ */
+@media (max-width: 639px) {
+  main:has(#reviews) > div {
+    min-width: 0;
+  }
+
+  main:has(#reviews) > div > section:first-of-type > div.grid > * {
+    overflow: visible;
+  }
+
+  main:has(#reviews) [class~="overflow-x-auto"] {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+}
