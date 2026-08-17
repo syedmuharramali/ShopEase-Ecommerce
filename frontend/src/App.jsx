@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   BrowserRouter as Router,
   Route,
@@ -36,6 +36,27 @@ import AdminMarkazPage from "./pages/AdminMarkazPage.jsx";
 
 import NotFound from "./pages/NotFound.jsx";
 
+/*
+ * React Router performs client-side navigation, so the browser can keep the
+ * previous page's scroll position. Reset the viewport whenever the route path
+ * changes so categories, products and storefront pages always open from the
+ * top. Hash-only navigation is intentionally left alone (for example
+ * #write-review on the product page).
+ */
+const RouteScrollManager = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  }, [pathname]);
+
+  return null;
+};
+
 const AppShell = () => {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith("/admin");
@@ -47,6 +68,7 @@ const AppShell = () => {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f7f7f5]">
+      <RouteScrollManager />
       <Navbar />
       {showAdminTools && <AdminToolsBar />}
 
