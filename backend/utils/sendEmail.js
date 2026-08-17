@@ -26,6 +26,52 @@ function htmlToPlainText(html = "") {
     .trim();
 }
 
+function prepareOrderConfirmation(subject = "", html = "") {
+  const match = String(subject).match(/^Order Confirmation\s*-\s*(.+)$/i);
+
+  if (!match) {
+    return {
+      subject: String(subject || "").trim(),
+      html: String(html || "").trim(),
+    };
+  }
+
+  const orderNumber = String(match[1] || "").trim();
+
+  let cleanHtml = String(html || "").trim();
+
+  /*
+   * Keep order confirmations strictly transactional.
+   *
+   * - Product images are unnecessary for a receipt and local development can
+   *   otherwise produce localhost image URLs that are useless to recipients.
+   * - "Continue shopping" mixes a promotional CTA into a transactional order
+   *   message. Customers can return to ShopEase normally after reading their
+   *   receipt.
+   */
+  cleanHtml = cleanHtml
+    .replace(/<img\b[^>]*>/gi, "")
+    .replace(
+      /<a\b[^>]*>[\s\S]*?Continue\s+shopping[\s\S]*?<\/a>/gi,
+      ""
+    )
+    .replace(/Cart order confirmation/gi, "Order received")
+    .replace(/Order confirmation/gi, "Order received");
+
+  const transactionalFooter = `
+    <div style="max-width:620px;margin:18px auto 0;font-family:Arial,sans-serif;color:#64748b;font-size:12px;line-height:1.6;text-align:center;">
+      You received this message because this email address was used to place an order with ShopEase. This email contains order information only.
+    </div>
+  `;
+
+  return {
+    subject: orderNumber
+      ? `ShopEase order received — ${orderNumber}`
+      : "ShopEase order received",
+    html: `${cleanHtml}${transactionalFooter}`,
+  };
+}
+
 const sendEmail = async (options = {}) => {
   const shopEmail = normalizeEmail(process.env.EMAIL_USER);
   const emailPassword = String(process.env.EMAIL_PASS || "").trim();
@@ -58,13 +104,14 @@ const sendEmail = async (options = {}) => {
     },
   });
 
-  const html = String(options.html || "").trim();
+  const prepared = prepareOrderConfirmation(options.subject, options.html);
+  const html = prepared.html;
   const text = String(options.text || "").trim() || htmlToPlainText(html);
 
   const mailOptions = {
     from: `"ShopEase" <${shopEmail}>`,
     to: recipient,
-    subject: options.subject,
+    subject: prepared.subject || options.subject,
     ...(text ? { text } : {}),
     ...(html ? { html } : {}),
   };
