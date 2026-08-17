@@ -8,6 +8,34 @@ require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProduction = process.env.NODE_ENV === "production";
+
+function cleanUrl(value = "") {
+  return String(value).trim().replace(/\/+$/, "");
+}
+
+function assertProductionConfig() {
+  if (!isProduction) return;
+
+  const frontendUrl = cleanUrl(process.env.FRONTEND_URL);
+  const backendUrl = cleanUrl(process.env.BACKEND_URL || process.env.SERVER_URL);
+
+  if (!frontendUrl) {
+    throw new Error("FRONTEND_URL must be configured in production");
+  }
+
+  if (!backendUrl) {
+    throw new Error("BACKEND_URL must be configured in production");
+  }
+
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(frontendUrl)) {
+    throw new Error("FRONTEND_URL cannot point to localhost in production");
+  }
+
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(backendUrl)) {
+    throw new Error("BACKEND_URL cannot point to localhost in production");
+  }
+}
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
@@ -22,18 +50,18 @@ app.use(
 );
 
 const allowedOrigins = [
-  "http://localhost:5173",
+  ...(!isProduction ? ["http://localhost:5173"] : []),
   process.env.FRONTEND_URL,
 ]
   .filter(Boolean)
-  .map((origin) => origin.replace(/\/+$/, ""));
+  .map((origin) => cleanUrl(origin));
 
 app.use(
   cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true);
 
-      const cleanOrigin = origin.replace(/\/+$/, "");
+      const cleanOrigin = cleanUrl(origin);
       if (allowedOrigins.includes(cleanOrigin)) {
         return callback(null, true);
       }
@@ -164,6 +192,8 @@ async function startServer() {
     if (!process.env.JWT_SECRET) {
       throw new Error("JWT_SECRET is not configured");
     }
+
+    assertProductionConfig();
 
     await mongoose.connect(process.env.MONGODB_URI);
     console.log("Connected to MongoDB");
