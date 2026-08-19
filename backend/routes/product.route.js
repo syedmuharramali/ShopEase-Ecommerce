@@ -25,8 +25,12 @@ const upload = require(
 
 const router = express.Router();
 const optimizeStorefrontImages = optimizeProductImages({ maxWidth: 1600 });
+const optimizeStorefrontList = optimizeProductImages({
+  maxWidth: 1200,
+  stripVariants: true,
+});
 
-router.get("/", optimizeStorefrontImages, getProducts);
+router.get("/", optimizeStorefrontList, getProducts);
 
 router.get(
   "/slug/:slug",
