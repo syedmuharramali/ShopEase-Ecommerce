@@ -15,17 +15,22 @@ const {
   protect,
   admin,
 } = require("../middleware/authMiddleware");
+const {
+  optimizeProductImages,
+} = require("../middleware/optimizeProductImages");
 
 const upload = require(
   "../middleware/uploadMiddleware.js"
 );
 
 const router = express.Router();
+const optimizeStorefrontImages = optimizeProductImages({ maxWidth: 1600 });
 
-router.get("/", getProducts);
+router.get("/", optimizeStorefrontImages, getProducts);
 
 router.get(
   "/slug/:slug",
+  optimizeStorefrontImages,
   getProductBySlug
 );
 router.get(
@@ -43,6 +48,7 @@ router.get(
 );
 router.get(
   "/:id",
+  optimizeStorefrontImages,
   getProductById
 );
 
