@@ -1,6 +1,8 @@
 import React from "react";
 import { Link } from "react-router";
-import developerPhoto from "../assets/developer-photo.png";
+
+const developerPhoto =
+  "https://res.cloudinary.com/uxbmj8cq/image/upload/f_auto,q_auto:best,c_limit,w_320/v1787179082/developerProfileOptimized.webp";
 
 import {
   FaArrowRight,
@@ -198,6 +200,8 @@ const Footer = () => {
                     src={developerPhoto}
                     alt="Syed Muharram Ali"
                     className="h-full w-full object-cover object-top transition duration-300 group-hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
 
