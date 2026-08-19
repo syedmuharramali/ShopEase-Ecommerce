@@ -10,8 +10,8 @@ const optimizeCloudinaryImageUrl = (value, maxWidth) => {
     return value;
   }
 
-  // Avoid stacking another optimization block on URLs that are already
-  // transformed. The original asset stored in Cloudinary is never modified.
+  // Keep the original Cloudinary asset untouched. This only changes the
+  // delivery URL so Cloudinary can send a modern format at a sensible size.
   const [prefix, suffix] = value.split(CLOUDINARY_UPLOAD_MARKER);
   if (!suffix || /(^|\/)f_auto[,/]|(^|\/)q_auto(?::[^,/]+)?[,/]/.test(suffix)) {
     return value;
@@ -21,32 +21,47 @@ const optimizeCloudinaryImageUrl = (value, maxWidth) => {
   return `${prefix}${CLOUDINARY_UPLOAD_MARKER}${transformation}/${suffix}`;
 };
 
-const optimizePayloadImages = (value, maxWidth) => {
+const optimizePayload = (value, { maxWidth, stripVariants }) => {
   if (typeof value === "string") {
     return optimizeCloudinaryImageUrl(value, maxWidth);
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => optimizePayloadImages(item, maxWidth));
+    return value.map((item) =>
+      optimizePayload(item, { maxWidth, stripVariants })
+    );
   }
 
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [
-        key,
-        optimizePayloadImages(item, maxWidth),
-      ])
+      Object.entries(value)
+        .filter(
+          ([key]) => !(stripVariants && key === "variants")
+        )
+        .map(([key, item]) => [
+          key,
+          optimizePayload(item, { maxWidth, stripVariants }),
+        ])
     );
   }
 
   return value;
 };
 
-const optimizeProductImages = ({ maxWidth = 1200 } = {}) =>
+const optimizeProductImages = ({
+  maxWidth = 1200,
+  stripVariants = false,
+} = {}) =>
   (req, res, next) => {
     const originalJson = res.json.bind(res);
 
-    res.json = (body) => originalJson(optimizePayloadImages(body, maxWidth));
+    res.json = (body) =>
+      originalJson(
+        optimizePayload(body, {
+          maxWidth,
+          stripVariants,
+        })
+      );
 
     next();
   };
