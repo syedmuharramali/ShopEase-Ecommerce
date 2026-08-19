@@ -23,6 +23,8 @@ import {
 import ProductCard from "../components/ProductCard";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
+const LIFESTYLE_IMAGE =
+  "https://res.cloudinary.com/uxbmj8cq/image/upload/f_auto,q_auto:best,c_limit,w_1600/v1787179177/shopease-lifestyleoptimized.webp";
 
 const formatPrice = (value) =>
   `PKR ${new Intl.NumberFormat("en-PK", {
@@ -749,7 +751,7 @@ const Home = () => {
 
             <div className="relative min-h-[390px] overflow-hidden bg-slate-100 sm:min-h-[480px] lg:min-h-[560px]">
               <img
-                src="/home/shopease-lifestyle.png"
+                src={LIFESTYLE_IMAGE}
                 alt="ShopEase fashion, footwear and lifestyle collection"
                 className="absolute inset-0 h-full w-full object-cover"
                 loading="lazy"
