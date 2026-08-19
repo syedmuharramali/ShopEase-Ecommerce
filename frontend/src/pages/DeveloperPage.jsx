@@ -2,7 +2,8 @@ import React  from "react";
 import { Link } from "react-router";
 import { motion } from "framer-motion";
 
-import developerPhoto from "../assets/developer-photo.png";
+const developerPhoto =
+  "https://res.cloudinary.com/uxbmj8cq/image/upload/f_auto,q_auto:best,c_limit,w_900/v1787179082/developerProfileOptimized.webp";
 
 import {
   FaArrowRight,
