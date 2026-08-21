@@ -11,6 +11,7 @@ const {
 const {
   protect,
   admin,
+  allowAdminProductRead,
 } = require("../middleware/authMiddleware");
 const requireActiveProduct = require(
   "../middleware/requireActiveProduct.js"
@@ -31,19 +32,14 @@ router.post(
 
 router.get(
   "/:productId/variants",
+  allowAdminProductRead,
   requireActiveProduct,
   getProductVariants
 );
 
 router.get(
-  "/admin/:productId/variants",
-  protect,
-  admin,
-  getProductVariants
-);
-
-router.get(
   "/:productId/variants/:variantId",
+  allowAdminProductRead,
   requireActiveProduct,
   getProductVariant
 );
