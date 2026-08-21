@@ -21,6 +21,13 @@ const optimizeCloudinaryImageUrl = (value, maxWidth) => {
   return `${prefix}${CLOUDINARY_UPLOAD_MARKER}${transformation}/${suffix}`;
 };
 
+const isPlainObject = (value) => {
+  if (!value || typeof value !== "object") return false;
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
 const optimizePayload = (value, { maxWidth, stripVariants }) => {
   if (typeof value === "string") {
     return optimizeCloudinaryImageUrl(value, maxWidth);
@@ -32,7 +39,10 @@ const optimizePayload = (value, { maxWidth, stripVariants }) => {
     );
   }
 
-  if (value && typeof value === "object") {
+  // Only rebuild normal JSON-like objects. BSON ObjectId instances and other
+  // special objects must keep their prototype so Express/Mongoose can
+  // serialize them correctly instead of turning them into plain objects.
+  if (isPlainObject(value)) {
     return Object.fromEntries(
       Object.entries(value)
         .filter(
