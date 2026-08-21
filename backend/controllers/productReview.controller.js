@@ -171,7 +171,6 @@ const createProductReview = async (req, res) => {
 
     const order = await Order.findOne({ orderNumber }).lean();
 
-    // Keep this intentionally generic so public callers cannot enumerate orders.
     if (!order || !contactMatchesOrder(order, contact)) {
       return res.status(404).json({
         message: "We could not verify that delivered order with those details",
@@ -302,7 +301,7 @@ const moderateReview = async (req, res) => {
           moderatedAt: new Date(),
         },
       },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     )
       .populate("product", "name slug")
       .lean();
