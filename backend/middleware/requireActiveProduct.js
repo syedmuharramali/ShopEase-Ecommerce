@@ -12,6 +12,20 @@ const requireActiveProduct = async (req, res, next) => {
       });
     }
 
+    if (req.allowAnyProductStatus) {
+      const product = await Product.exists({
+        _id: productId,
+      });
+
+      if (!product) {
+        return res.status(404).json({
+          message: "Product not found",
+        });
+      }
+
+      return next();
+    }
+
     const product = await Product.exists({
       _id: productId,
       status: "active",
