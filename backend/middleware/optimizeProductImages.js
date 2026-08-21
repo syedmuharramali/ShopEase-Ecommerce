@@ -1,6 +1,23 @@
 const CLOUDINARY_HOST = "res.cloudinary.com";
 const CLOUDINARY_UPLOAD_MARKER = "/image/upload/";
 
+/*
+ * Private/internal fields that must never leave the public storefront list
+ * response. The product list is built with a MongoDB aggregation, which does
+ * not apply Mongoose `select: false`, so this is a final response-level safety
+ * boundary in addition to the schema protections.
+ */
+const PRIVATE_STOREFRONT_KEYS = new Set([
+  "supplier",
+  "supplierProductCode",
+  "fulfillmentType",
+  "supplierLastCheckedAt",
+  "supplierSku",
+  "supplierCost",
+  "expectedProfit",
+  "inventoryType",
+]);
+
 const optimizeCloudinaryImageUrl = (value, maxWidth) => {
   if (
     typeof value !== "string" ||
@@ -28,6 +45,10 @@ const isPlainObject = (value) => {
   return prototype === Object.prototype || prototype === null;
 };
 
+const shouldStripStorefrontKey = (key, stripVariants) =>
+  stripVariants &&
+  (key === "variants" || PRIVATE_STOREFRONT_KEYS.has(key));
+
 const optimizePayload = (value, { maxWidth, stripVariants }) => {
   if (typeof value === "string") {
     return optimizeCloudinaryImageUrl(value, maxWidth);
@@ -46,7 +67,7 @@ const optimizePayload = (value, { maxWidth, stripVariants }) => {
     return Object.fromEntries(
       Object.entries(value)
         .filter(
-          ([key]) => !(stripVariants && key === "variants")
+          ([key]) => !shouldStripStorefrontKey(key, stripVariants)
         )
         .map(([key, item]) => [
           key,
