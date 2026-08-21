@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useState } from "react";
 
 const CART_STORAGE_KEY = "shopease_cart_v1";
 const WISHLIST_STORAGE_KEY = "shopease_wishlist_v1";
@@ -232,31 +232,30 @@ export const StoreProvider = ({ children }) => {
 
   const clearWishlist = () => commitWishlist([]);
 
-  const value = useMemo(
-    () => ({
-      cartItems,
-      wishlistItems,
-      cartCount: cartItems.reduce(
-        (sum, item) => sum + Math.max(1, Number(item.quantity) || 1),
-        0
-      ),
-      wishlistCount: wishlistItems.length,
-      addToCart,
-      updateCartQuantity,
-      removeFromCart,
-      clearCart,
-      isWishlisted,
-      addToWishlist,
-      removeFromWishlist,
-      toggleWishlist,
-      clearWishlist,
-    }),
-    [cartItems, wishlistItems]
-  );
+  const value = {
+    cartItems,
+    wishlistItems,
+    cartCount: cartItems.reduce(
+      (sum, item) => sum + Math.max(1, Number(item.quantity) || 1),
+      0
+    ),
+    wishlistCount: wishlistItems.length,
+    addToCart,
+    updateCartQuantity,
+    removeFromCart,
+    clearCart,
+    isWishlisted,
+    addToWishlist,
+    removeFromWishlist,
+    toggleWishlist,
+    clearWishlist,
+  };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 };
 
+// This hook intentionally lives beside its provider so consumers keep one stable import path.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useStore = () => {
   const context = useContext(StoreContext);
 
