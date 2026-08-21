@@ -2,6 +2,9 @@ const express = require("express");
 
 const router = express.Router();
 const { protect, admin } = require("../middleware/authMiddleware.js");
+const validateMarkazProductSettings = require(
+  "../middleware/validateMarkazProductSettings.js"
+);
 const {
   getMarkazProducts,
   updateMarkazProduct,
@@ -14,7 +17,11 @@ const {
 router.use(protect, admin);
 
 router.get("/products", getMarkazProducts);
-router.put("/products/:productId", updateMarkazProduct);
+router.put(
+  "/products/:productId",
+  validateMarkazProductSettings,
+  updateMarkazProduct
+);
 
 router.get("/orders", getMarkazOrders);
 router.put(
