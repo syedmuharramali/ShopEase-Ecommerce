@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "axios";
@@ -59,9 +59,13 @@ const AdminReviewsPage = () => {
   const [updatingId, setUpdatingId] = useState("");
   const [message, setMessage] = useState(null);
 
-  const authHeaders = adminInfo?.token
-    ? { Authorization: `Bearer ${adminInfo.token}` }
-    : {};
+  const authHeaders = useMemo(
+    () =>
+      adminInfo?.token
+        ? { Authorization: `Bearer ${adminInfo.token}` }
+        : {},
+    [adminInfo?.token]
+  );
 
   const handleUnauthorized = useCallback(() => {
     dispatch(logout());
