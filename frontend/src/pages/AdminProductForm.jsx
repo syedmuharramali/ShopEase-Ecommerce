@@ -56,11 +56,7 @@ const getImageUrl = (image) => {
 const normalizeProduct = (payload) =>
   payload?.product || payload || null;
 
-const normalizeProducts = (payload) => {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.products)) return payload.products;
-  return [];
-};
+
 
 const normalizeOptions = (payload) => {
   if (Array.isArray(payload)) return payload;

@@ -201,7 +201,7 @@ const ProductDetail = () => {
     return () => {
       ignore = true;
     };
-  }, [product?._id, product?.category?.slug]);
+  }, [product?._id, product?.category]);
 
   const activeOptions = useMemo(
     () =>
@@ -325,7 +325,7 @@ const ProductDetail = () => {
         ? Math.min(Math.max(currentQuantity, 1), availableStock)
         : 1
     );
-  }, [selectedVariant?._id]);
+  }, [selectedVariant]);
 
   const isValueAvailable = (optionId, valueId) => {
     return activeVariants.some((variant) => {

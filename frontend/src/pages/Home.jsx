@@ -69,26 +69,14 @@ const getCategorySlug = (product) => {
   return product.category.slug || "";
 };
 
-const getCategoryName = (product) => {
-  if (!product?.category) return "Collection";
-  if (typeof product.category === "string") return product.category;
-  return product.category.name || "Collection";
-};
+
 
 const getProductPrice = (product) => {
   const value = product?.storefront?.minPrice;
   return value === null || value === undefined ? null : Number(value);
 };
 
-const getDiscountPercent = (product) => {
-  const variant = product?.storefront?.defaultVariant;
-  const price = Number(variant?.price || 0);
-  const compareAtPrice = Number(variant?.compareAtPrice || 0);
 
-  if (!price || !compareAtPrice || compareAtPrice <= price) return 0;
-
-  return Math.round(((compareAtPrice - price) / compareAtPrice) * 100);
-};
 
 const normalizeProducts = (payload) => {
   if (Array.isArray(payload)) return payload;
@@ -503,14 +491,7 @@ const Home = () => {
     return map;
   }, [allLoadedProducts]);
 
-  const saleProducts = useMemo(
-    () =>
-      allLoadedProducts
-        .filter((product) => getDiscountPercent(product) > 0)
-        .sort((a, b) => getDiscountPercent(b) - getDiscountPercent(a))
-        .slice(0, 4),
-    [allLoadedProducts]
-  );
+  
 
   const heroProducts = featuredProducts.slice(0, 3);
   const featuredGrid = featuredProducts.slice(0, 8);

@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Link,
-  useNavigate,
   useParams,
   useSearchParams,
 } from "react-router";
@@ -105,7 +104,6 @@ const submitGatewayForm = (payment) => {
 const OrderPage = () => {
   const { id: productId } = useParams();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
 
   const variantId = searchParams.get("variantId");
   const requestedQuantity = Number(searchParams.get("quantity")) || 1;
