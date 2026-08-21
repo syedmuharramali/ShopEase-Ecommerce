@@ -15,6 +15,7 @@ const {
 const {
   protect,
   admin,
+  allowAdminProductRead,
 } = require("../middleware/authMiddleware");
 const {
   optimizeProductImages,
@@ -68,6 +69,7 @@ router.get(
 );
 router.get(
   "/:id",
+  allowAdminProductRead,
   optimizeStorefrontImages,
   getProductById
 );
