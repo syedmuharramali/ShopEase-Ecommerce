@@ -15,7 +15,7 @@ import {
 } from "react-icons/fa";
 
 const LINKEDIN_URL =
-  "https://www.linkedin.com/in/syed-muharram-ali-0118a9428/";
+  "https://www.linkedin.com/in/syedmuharramali/";
 
 const GITHUB_URL = "https://github.com/syedmuharramali";
 
