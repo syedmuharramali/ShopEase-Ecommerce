@@ -41,12 +41,6 @@ function parseBoolean(
   return fallback;
 }
 
-/*
- * ----------------------------------------
- * Validate rates
- * ----------------------------------------
- */
-
 function validateRates(rates) {
   if (!Array.isArray(rates)) {
     return {
@@ -123,12 +117,10 @@ function validateRates(rates) {
 
     regionMap.set(region, {
       region,
-
       charge:
         isAvailable
           ? charge
           : 0,
-
       isAvailable,
     });
   }
@@ -144,15 +136,6 @@ function validateRates(rates) {
     rates: normalizedRates,
   };
 }
-
-/*
- * ----------------------------------------
- * Public
- *
- * GET
- * /api/products/:productId/delivery-rates
- * ----------------------------------------
- */
 
 const getProductDeliveryRates =
   async (req, res) => {
@@ -173,14 +156,6 @@ const getProductDeliveryRates =
               "Invalid product ID",
           });
       }
-
-      /*
-       * Public customers should only
-       * retrieve delivery information
-       * for active products.
-       *
-       * Admin wrapper can bypass this.
-       */
 
       const product =
         req.allowAnyProductStatus
@@ -217,21 +192,14 @@ const getProductDeliveryRates =
           }
         ).lean();
 
-      /*
-       * Existing products may not
-       * have delivery configuration yet.
-       */
-
       if (!delivery) {
         return res
           .status(200)
           .json({
             product:
               productId,
-
             configured:
               false,
-
             rates:
               DELIVERY_REGIONS.map(
                 (region) => ({
@@ -249,10 +217,8 @@ const getProductDeliveryRates =
         .json({
           product:
             productId,
-
           configured:
             true,
-
           rates:
             delivery.rates,
         });
@@ -270,15 +236,6 @@ const getProductDeliveryRates =
         });
     }
   };
-
-/*
- * ----------------------------------------
- * Admin
- *
- * PUT
- * /api/products/:productId/delivery-rates
- * ----------------------------------------
- */
 
 const saveProductDeliveryRates =
   async (req, res) => {
@@ -345,7 +302,7 @@ const saveProductDeliveryRates =
             },
           },
           {
-            new: true,
+            returnDocument: "after",
             upsert: true,
             runValidators:
               true,
@@ -359,7 +316,6 @@ const saveProductDeliveryRates =
         .json({
           message:
             "Delivery charges saved successfully",
-
           delivery,
         });
     } catch (error) {
@@ -388,10 +344,6 @@ const saveProductDeliveryRates =
         });
     }
   };
-
-/*
- * Admin GET wrapper
- */
 
 const getAdminProductDeliveryRates =
   async (req, res) => {

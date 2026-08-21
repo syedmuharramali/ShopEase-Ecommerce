@@ -89,7 +89,7 @@ async function reserveCouponUsage(code, subtotal) {
   const coupon = await Coupon.findOneAndUpdate(
     activeCouponQuery(normalizedCode, safeSubtotal, now),
     { $inc: { usedCount: 1 } },
-    { new: true, runValidators: true }
+    { returnDocument: "after", runValidators: true }
   ).lean();
 
   if (!coupon) {

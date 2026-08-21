@@ -11,7 +11,11 @@ const {
 const {
   protect,
   admin,
+  allowAdminProductRead,
 } = require("../middleware/authMiddleware");
+const requireActiveProduct = require(
+  "../middleware/requireActiveProduct.js"
+);
 
 const router = express.Router();
 
@@ -28,11 +32,15 @@ router.post(
 
 router.get(
   "/:productId/variants",
+  allowAdminProductRead,
+  requireActiveProduct,
   getProductVariants
 );
 
 router.get(
   "/:productId/variants/:variantId",
+  allowAdminProductRead,
+  requireActiveProduct,
   getProductVariant
 );
 

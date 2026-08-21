@@ -41,7 +41,11 @@ const Navbar = () => {
   }, []);
 
   useEffect(() => {
-    setIsMenuOpen(false);
+    const closeMenuTimer = window.setTimeout(() => {
+      setIsMenuOpen(false);
+    }, 0);
+
+    return () => window.clearTimeout(closeMenuTimer);
   }, [location.pathname]);
 
   useEffect(() => {

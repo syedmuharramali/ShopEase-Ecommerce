@@ -110,7 +110,7 @@ exports.updateCoupon = async (req, res) => {
     const coupon = await Coupon.findByIdAndUpdate(
       req.params.id,
       { $set: payload },
-      { new: true, runValidators: true }
+      { returnDocument: "after", runValidators: true }
     );
 
     if (!coupon) return res.status(404).json({ message: "Coupon not found" });
@@ -138,7 +138,7 @@ exports.archiveCoupon = async (req, res) => {
     const coupon = await Coupon.findByIdAndUpdate(
       req.params.id,
       { $set: { isActive: false } },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!coupon) return res.status(404).json({ message: "Coupon not found" });
