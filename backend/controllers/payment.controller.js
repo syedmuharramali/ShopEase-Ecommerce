@@ -52,7 +52,7 @@ async function cancelFailedPayment(order, responseCode, responseMessage) {
         "payment.gatewayResponseMessage": responseMessage || "Payment was not completed",
       },
     },
-    { new: true }
+    { returnDocument: "after" }
   );
 
   if (!updated) return Order.findById(order._id);
@@ -140,7 +140,7 @@ exports.jazzCashReturn = async (req, res) => {
             "payment.paidAt": new Date(),
           },
         },
-        { new: true }
+        { returnDocument: "after" }
       );
 
       if (updated || order.payment?.status === "paid") {
