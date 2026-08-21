@@ -467,7 +467,7 @@ I build responsive, full-stack web applications using JavaScript and the MERN ec
 ### Connect with me
 
 - **GitHub:** [github.com/syedmuharramali](https://github.com/syedmuharramali)
-- **LinkedIn:** [Syed Muharram Ali](https://www.linkedin.com/in/syed-muharram-ali-0118a9428/)
+- **LinkedIn:** [Syed Muharram Ali](https://www.linkedin.com/in/syedmuharramali/)
 - **Live Project:** [ShopEase](https://shopease-sage.vercel.app/)
 
 ---
