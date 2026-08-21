@@ -42,11 +42,34 @@ const optimizePayload = (value) => {
   return value;
 };
 
+const getSavedAdminToken = () => {
+  try {
+    const saved = localStorage.getItem("adminInfo");
+    if (!saved) return "";
+
+    const adminInfo = JSON.parse(saved);
+    return typeof adminInfo?.token === "string" ? adminInfo.token : "";
+  } catch {
+    return "";
+  }
+};
+
 let installed = false;
 
 export const installProductImageOptimization = () => {
   if (installed) return;
   installed = true;
+
+  axios.interceptors.request.use((config) => {
+    const token = getSavedAdminToken();
+
+    if (token && !config.headers?.Authorization) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  });
 
   axios.interceptors.response.use((response) => {
     const requestUrl = String(response.config?.url || "");
