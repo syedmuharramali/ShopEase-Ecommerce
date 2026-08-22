@@ -141,30 +141,7 @@ const SectionHeading = ({
   </div>
 );
 
-const HomeSkeleton = () => (
-  <main className="min-h-screen bg-[#f6f6f4]">
-    <section className="min-h-[720px] animate-pulse bg-slate-950" />
-    <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-      <div className="h-8 w-48 rounded-full bg-slate-200" />
-      <div className="mt-5 h-12 w-80 max-w-full rounded-2xl bg-slate-200" />
-      <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, index) => (
-          <div
-            key={index}
-            className="overflow-hidden rounded-[30px] border border-slate-200 bg-white"
-          >
-            <div className="aspect-[4/4.8] bg-slate-100" />
-            <div className="space-y-3 p-5">
-              <div className="h-3 w-20 rounded bg-slate-100" />
-              <div className="h-5 w-3/4 rounded bg-slate-100" />
-              <div className="h-6 w-28 rounded bg-slate-100" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  </main>
-);
+
 
 const HeroGallery = ({ products }) => {
   const primary = products[0];
@@ -514,9 +491,7 @@ const Home = () => {
     navigate(`/products?search=${encodeURIComponent(query)}`);
   };
 
-  if (loading && featuredProducts.length === 0) {
-    return <HomeSkeleton />;
-  }
+  
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f6f6f4] text-slate-950">
@@ -647,7 +622,24 @@ const Home = () => {
             action={<Link to="/products?sort=featured" className="inline-flex w-fit items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">Shop all <FaArrowRight className="text-[10px]" /></Link>}
           />
 
-          {loadError && featuredGrid.length === 0 ? (
+       {loading && featuredGrid.length === 0 ? (
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="overflow-hidden rounded-[30px] border border-slate-200 bg-white"
+                >
+                  <div className="aspect-[4/4.8] animate-pulse bg-slate-100" />
+
+                  <div className="space-y-3 p-5">
+                    <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+                    <div className="h-5 w-3/4 animate-pulse rounded bg-slate-100" />
+                    <div className="h-6 w-28 animate-pulse rounded bg-slate-100" />
+                  </div>
+                </div>
+              ))}
+            </div>
+) : loadError && featuredGrid.length === 0 ? (
             <div className="mt-10 rounded-[32px] border border-slate-200 bg-slate-50 px-6 py-14 text-center"><FaBoxOpen className="mx-auto text-2xl text-slate-300" /><p className="mt-4 text-sm font-bold text-slate-700">{loadError}</p></div>
           ) : featuredGrid.length === 0 ? (
             <div className="mt-10 rounded-[32px] border border-slate-200 bg-slate-50 px-6 py-14 text-center"><FaShoppingBag className="mx-auto text-2xl text-slate-300" /><p className="mt-4 text-sm font-bold text-slate-700">Products are coming soon.</p></div>
