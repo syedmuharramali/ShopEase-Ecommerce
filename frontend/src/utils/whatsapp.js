@@ -1,3 +1,6 @@
+const SHOP_WHATSAPP_NUMBER = "03459313448";
+
+// Converts Pakistani phone numbers into WhatsApp international format.
 const normalizeWhatsAppNumber = (phoneNumber = "") => {
   const digits = String(phoneNumber).replace(/\D/g, "");
 
@@ -92,6 +95,8 @@ Please contact ShopEase if you need any assistance.`
   );
 };
 
+// Existing Admin Dashboard feature:
+// ShopEase opens the customer's WhatsApp chat.
 export const getWhatsAppLink = (order) => {
   const phoneNumber = normalizeWhatsAppNumber(order?.phoneNumber);
 
@@ -102,6 +107,30 @@ export const getWhatsAppLink = (order) => {
   const message = getStatusMessage(order);
 
   return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+};
+
+// New safer customer-initiated feature:
+// Customer opens ShopEase's WhatsApp chat and sends the first message.
+export const getShopWhatsAppLink = (orderNumber = "") => {
+  const shopNumber = normalizeWhatsAppNumber(SHOP_WHATSAPP_NUMBER);
+
+  if (!shopNumber) {
+    return "";
+  }
+
+  const cleanOrderNumber = String(orderNumber || "").trim();
+
+  const message = cleanOrderNumber
+    ? `Assalam-o-Alaikum ShopEase,
+
+I need help with my order.
+
+Order: ${cleanOrderNumber}`
+    : `Assalam-o-Alaikum ShopEase,
+
+I need help with my order.`;
+
+  return `https://wa.me/${shopNumber}?text=${encodeURIComponent(message)}`;
 };
 
 export { normalizeWhatsAppNumber };

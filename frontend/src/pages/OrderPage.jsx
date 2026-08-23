@@ -10,6 +10,7 @@ import {
   FaArrowLeft,
   FaBox,
   FaCheck,
+  FaWhatsapp,
   FaCheckCircle,
   FaEnvelope,
   FaExclamationCircle,
@@ -25,6 +26,8 @@ import {
   FaTruck,
   FaUser,
 } from "react-icons/fa";
+
+import { getShopWhatsAppLink } from "../utils/whatsapp.js";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
 
@@ -568,7 +571,7 @@ const OrderPage = () => {
     const orderNumber =
       completedOrder.orderNumber ||
       completedOrder._id?.slice(-8)?.toUpperCase();
-
+    const shopWhatsAppLink = getShopWhatsAppLink(orderNumber);
     return (
       <main className="min-h-screen bg-[#f7f7f5] px-4 py-12 sm:px-6 lg:px-8">
         <motion.div
@@ -690,6 +693,18 @@ const OrderPage = () => {
                 Back to home
               </Link>
             </div>
+
+            {shopWhatsAppLink && (
+              <a
+                href={shopWhatsAppLink}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+              >
+                <FaWhatsapp className="text-lg" />
+                Message ShopEase on WhatsApp
+              </a>
+            )}
           </div>
         </motion.div>
       </main>

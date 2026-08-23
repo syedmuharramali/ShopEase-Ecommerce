@@ -15,7 +15,9 @@ import {
   FaShoppingBag,
   FaSpinner,
   FaTruck,
+  FaWhatsapp,
 } from "react-icons/fa";
+import { getShopWhatsAppLink } from "../utils/whatsapp.js";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/+$/, "");
 const ASSET_BASE_URL = (
@@ -515,6 +517,18 @@ const TrackOrderPage = () => {
               >
                 Need help with this order?
               </Link>
+
+              {getShopWhatsAppLink(order.orderNumber) && (
+                <a
+                  href={getShopWhatsAppLink(order.orderNumber)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-600"
+                >
+                  <FaWhatsapp className="text-lg" />
+                  WhatsApp ShopEase
+                </a>
+              )}
             </div>
           </motion.div>
         )}
