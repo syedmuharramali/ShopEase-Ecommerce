@@ -11,6 +11,7 @@ import {
   FaArchive,
   FaArrowRight,
   FaBox,
+  FaWhatsapp,
   FaBoxOpen,
   FaCheckCircle,
   FaChartLine,
@@ -29,6 +30,8 @@ import {
   FaTruck,
   FaWallet,
 } from "react-icons/fa";
+
+import { getWhatsAppLink } from "../utils/whatsapp.js";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
 
@@ -1738,6 +1741,19 @@ const AdminDashboard = () => {
                                   <FaSpinner className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 animate-spin text-[10px] text-violet-600" />
                                 )}
                               </div>
+
+                              {getWhatsAppLink(order) && (
+                                <a
+                                  href={getWhatsAppLink(order)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white transition hover:bg-emerald-600"
+                                  title="WhatsApp customer"
+                                  aria-label={`WhatsApp ${order.name || "customer"}`}
+                                >
+                                  <FaWhatsapp className="text-base" />
+                                </a>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1854,26 +1870,41 @@ const AdminDashboard = () => {
                           </p>
                         </div>
 
-                        <select
-                          value={order.status || "pending"}
-                          onChange={(event) =>
-                            updateOrderStatus(
-                              order._id,
-                              event.target.value
-                            )
-                          }
-                          disabled={
-                            updatingOrderId === order._id
-                          }
-                          className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none"
-                        >
-                          {ORDER_STATUSES.map((status) => (
-                            <option key={status} value={status}>
-                              {status.charAt(0).toUpperCase() +
-                                status.slice(1)}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <select
+                            value={order.status || "pending"}
+                            onChange={(event) =>
+                              updateOrderStatus(
+                                order._id,
+                                event.target.value
+                              )
+                            }
+                            disabled={
+                              updatingOrderId === order._id
+                            }
+                            className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none"
+                          >
+                            {ORDER_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {status.charAt(0).toUpperCase() +
+                                  status.slice(1)}
+                              </option>
+                            ))}
+                          </select>
+
+                          {getWhatsAppLink(order) && (
+                            <a
+                              href={getWhatsAppLink(order)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 text-xs font-semibold text-white transition hover:bg-emerald-600"
+                              aria-label={`WhatsApp ${order.name || "customer"}`}
+                            >
+                              <FaWhatsapp className="text-base" />
+                              WhatsApp
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
