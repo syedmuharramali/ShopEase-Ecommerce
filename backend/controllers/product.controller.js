@@ -40,6 +40,7 @@ function parseBoolean(value, fallback = false) {
  * ?status=active
  * ?featured=true
  * ?sort=newest
+ * ?view=home
  * ?minPrice=1000
  * ?maxPrice=5000
  */
@@ -54,9 +55,12 @@ const getProducts = async (req, res) => {
       status = "active",
       featured,
       sort = "featured",
+      view = "",
       minPrice,
       maxPrice,
     } = req.query;
+
+    const isHomeView = view === "home" && !req.allowAnyProductStatus;
 
     /*
      * ----------------------------------------
@@ -513,6 +517,98 @@ const getProducts = async (req, res) => {
      * ----------------------------------------
      */
 
+    const publicStorefrontListProjection = {
+      name: 1,
+      slug: 1,
+      shortDescription: 1,
+      brand: 1,
+      category: {
+        _id: "$category._id",
+        name: "$category.name",
+        slug: "$category.slug",
+      },
+      images: {
+        $slice: [
+          {
+            $ifNull: ["$images", []],
+          },
+          1,
+        ],
+      },
+      featured: 1,
+      storefront: {
+        minPrice: "$storefront.minPrice",
+        maxPrice: "$storefront.maxPrice",
+        totalStock: "$storefront.totalStock",
+        inStock: "$storefront.inStock",
+        variantCount: "$storefront.variantCount",
+        defaultVariant: {
+          price: "$storefront.defaultVariant.price",
+          compareAtPrice: "$storefront.defaultVariant.compareAtPrice",
+          images: {
+            $slice: [
+              {
+                $ifNull: ["$storefront.defaultVariant.images", []],
+              },
+              1,
+            ],
+          },
+        },
+      },
+      createdAt: 1,
+    };
+
+    const storefrontListProjection = req.allowAnyProductStatus
+      ? {
+          name: 1,
+          slug: 1,
+          description: 1,
+          shortDescription: 1,
+          brand: 1,
+          category: {
+            _id: "$category._id",
+            name: "$category.name",
+            slug: "$category.slug",
+          },
+          images: 1,
+          tags: 1,
+          status: 1,
+          featured: 1,
+          storefront: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        }
+      : publicStorefrontListProjection;
+
+    const productListStages = [
+      {
+        $sort: sortQuery,
+      },
+      {
+        $skip: skip,
+      },
+      {
+        $limit: limit,
+      },
+      {
+        $project: storefrontListProjection,
+      },
+    ];
+
+    const newestListStages = [
+      {
+        $sort: {
+          createdAt: -1,
+        },
+      },
+      {
+        $limit: 4,
+      },
+      {
+        $project: storefrontListProjection,
+      },
+    ];
+
     pipeline.push(
       {
         $lookup: {
@@ -542,18 +638,6 @@ const getProducts = async (req, res) => {
       },
 
       /*
-       * Sort BEFORE pagination.
-       *
-       * This is important:
-       * price sorting now works across
-       * the entire collection.
-       */
-      {
-        $sort:
-          sortQuery,
-      },
-
-      /*
        * Get products + total count
        * using the same filtered dataset.
        */
@@ -565,42 +649,12 @@ const getProducts = async (req, res) => {
             },
           ],
 
-          products: [
-            {
-              $skip:
-                skip,
-            },
-
-            {
-              $limit:
-                limit,
-            },
-
-            {
-              $project: {
-                name: 1,
-                slug: 1,
-                description: 1,
-                shortDescription: 1,
-                brand: 1,
-                category: {
-                  _id:
-                    "$category._id",
-                  name:
-                    "$category.name",
-                  slug:
-                    "$category.slug",
-                },
-                images: 1,
-                tags: 1,
-                status: 1,
-                featured: 1,
-                storefront: 1,
-                createdAt: 1,
-                updatedAt: 1,
-              },
-            },
-          ],
+          products: productListStages,
+          ...(isHomeView
+            ? {
+                newest: newestListStages,
+              }
+            : {}),
         },
       }
     );
@@ -640,6 +694,9 @@ const getProducts = async (req, res) => {
     const products =
       resultData.products || [];
 
+    const newestProducts =
+      resultData.newest || [];
+
     const total =
       resultData.metadata?.[0]
         ?.total || 0;
@@ -657,6 +714,10 @@ const getProducts = async (req, res) => {
 
     return res.status(200).json({
       products,
+
+      ...(isHomeView
+        ? { newest: newestProducts }
+        : {}),
 
       categories,
 

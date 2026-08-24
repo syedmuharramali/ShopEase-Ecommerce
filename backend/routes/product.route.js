@@ -26,11 +26,33 @@ const upload = require(
 );
 
 const router = express.Router();
-const optimizeStorefrontImages = optimizeProductImages({ maxWidth: 1600 });
+const optimizeStorefrontImages = optimizeProductImages({ maxWidth: 1440 });
 const optimizeStorefrontList = optimizeProductImages({
-  maxWidth: 1200,
+  maxWidth: 960,
   stripVariants: true,
 });
+
+const cachePublicStorefrontList = (req, res, next) => {
+  const originalJson = res.json.bind(res);
+
+  res.json = (body) => {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      // Product prices and stock are always checked again by the ordering APIs.
+      // A short browser/edge cache makes repeat storefront visits much faster
+      // without allowing stale client values to decide the final order total.
+      res.set(
+        "Cache-Control",
+        "public, max-age=30, s-maxage=60, stale-while-revalidate=120"
+      );
+    } else {
+      res.set("Cache-Control", "no-store");
+    }
+
+    return originalJson(body);
+  };
+
+  next();
+};
 
 /*
  * Reject malformed MongoDB product IDs before they reach Mongoose.
@@ -47,7 +69,7 @@ router.param("id", (req, res, next, id) => {
   return next();
 });
 
-router.get("/", optimizeStorefrontList, getProducts);
+router.get("/", cachePublicStorefrontList, optimizeStorefrontList, getProducts);
 
 router.get(
   "/slug/:slug",

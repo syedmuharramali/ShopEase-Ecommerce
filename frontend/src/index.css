@@ -12,6 +12,112 @@ body {
   overflow-x: hidden;
 }
 
+/* Keep the long storefront inexpensive to render while preserving its visual
+ * design. Browsers can skip style, layout, and paint work for sections that
+ * are still far below the viewport, then render them as the shopper scrolls. */
+.home-page > section:not(:first-child) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 900px;
+}
+
+@keyframes home-fade-up {
+  from {
+    transform: translateY(22px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes home-card-primary {
+  from {
+    transform: translateY(30px) rotate(-3deg);
+  }
+  to {
+    transform: translateY(0) rotate(0);
+  }
+}
+
+@keyframes home-card-secondary {
+  from {
+    opacity: 0;
+    transform: translateX(28px) rotate(9deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) rotate(5deg);
+  }
+}
+
+@keyframes home-card-tertiary {
+  from {
+    opacity: 0;
+    transform: translateX(24px) rotate(-8deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) rotate(-4deg);
+  }
+}
+
+@keyframes home-badge-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.home-hero-copy,
+.home-hero-card-primary,
+.home-hero-card-secondary,
+.home-hero-card-tertiary,
+.home-hero-badge {
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-hero-copy {
+  animation-name: home-fade-up;
+  animation-duration: 650ms;
+}
+
+.home-hero-card-primary {
+  animation-name: home-card-primary;
+  animation-duration: 750ms;
+}
+
+.home-hero-card-secondary {
+  animation-name: home-card-secondary;
+  animation-duration: 700ms;
+  animation-delay: 160ms;
+}
+
+.home-hero-card-tertiary {
+  animation-name: home-card-tertiary;
+  animation-duration: 700ms;
+  animation-delay: 260ms;
+}
+
+.home-hero-badge {
+  animation-name: home-badge-enter;
+  animation-duration: 600ms;
+  animation-delay: 380ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-copy,
+  .home-hero-card-primary,
+  .home-hero-card-secondary,
+  .home-hero-card-tertiary,
+  .home-hero-badge {
+    animation: none;
+  }
+}
+
 /* --------------------------------------------------------------------------
    PRODUCT DETAIL — BASE LAYOUT
    -------------------------------------------------------------------------- */

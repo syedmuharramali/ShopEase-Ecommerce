@@ -6,6 +6,10 @@ import {
   FaLayerGroup,
 } from "react-icons/fa";
 import { useStore } from "../context/storeContext";
+import {
+  getResponsiveImageProps,
+  PRODUCT_IMAGE_FALLBACK,
+} from "../utils/imageUrls";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
 
@@ -13,32 +17,6 @@ const formatPrice = (value) =>
   `PKR ${new Intl.NumberFormat("en-PK", {
     maximumFractionDigits: 0,
   }).format(Number(value) || 0)}`;
-
-const getServerOrigin = () => {
-  if (!API_BASE_URL) return "";
-
-  try {
-    return new URL(API_BASE_URL).origin;
-  } catch {
-    return typeof window !== "undefined" ? window.location.origin : "";
-  }
-};
-
-const getImageUrl = (image) => {
-  const rawPath = typeof image === "string" ? image : image?.url;
-
-  if (!rawPath) {
-    return "https://placehold.co/900x1050/f8fafc/64748b?text=ShopEase";
-  }
-
-  const cleanPath = rawPath.replace(/\\/g, "/");
-
-  if (/^https?:\/\//i.test(cleanPath)) {
-    return cleanPath;
-  }
-
-  return `${getServerOrigin()}/${cleanPath.replace(/^\/+/, "")}`;
-};
 
 const getImageAlt = (image, fallback) =>
   typeof image === "object" && image?.alt ? image.alt : fallback;
@@ -82,6 +60,12 @@ const ProductCard = ({ product }) => {
   const inStock = storefront.inStock;
   const variantCount = storefront.variantCount || 0;
   const wishlisted = isWishlisted(product._id);
+  const productImageProps = getResponsiveImageProps(productImage, {
+    apiBaseUrl: API_BASE_URL,
+    width: 900,
+    widths: [360, 640, 900],
+    sizes: "(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw",
+  });
 
   const handleWishlist = () => {
     toggleWishlist({
@@ -106,14 +90,15 @@ const ProductCard = ({ product }) => {
       >
         <div className="relative aspect-[4/4.45] overflow-hidden bg-[#f1f1ef] sm:aspect-[4/4.6]">
           <img
-            src={getImageUrl(productImage)}
+            {...productImageProps}
             alt={getImageAlt(productImage, product.name)}
             className="h-full w-full object-cover transition duration-500 ease-out group-hover:scale-[1.035]"
             loading="lazy"
+            decoding="async"
             onError={(event) => {
               event.currentTarget.onerror = null;
-              event.currentTarget.src =
-                "https://placehold.co/900x1050/f8fafc/64748b?text=ShopEase";
+              event.currentTarget.removeAttribute("srcset");
+              event.currentTarget.src = PRODUCT_IMAGE_FALLBACK;
             }}
           />
 
