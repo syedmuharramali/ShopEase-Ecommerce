@@ -23,6 +23,12 @@ import ProductCard from "../components/ProductCard";
 import { getResponsiveImageProps } from "../utils/imageUrls";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
+const HERO_COLLECTION_IMAGE =
+  "https://res.cloudinary.com/uxbmj8cq/image/upload/v1787574469/shopease-hero-collection.webp";
+const HERO_TECH_TILE_IMAGE =
+  "https://res.cloudinary.com/uxbmj8cq/image/upload/v1787574479/shopease-hero-tech-tile.webp";
+const HERO_STYLE_TILE_IMAGE =
+  "https://res.cloudinary.com/uxbmj8cq/image/upload/v1787574474/shopease-hero-style-tile.webp";
 const HOME_DATA_TTL = 2 * 60 * 1000;
 
 let homeDataCache = null;
@@ -111,12 +117,27 @@ const LIFESTYLE_IMAGE_PROPS = {
     "/home/shopease-lifestyle-640.webp 640w, /home/shopease-lifestyle-960.webp 960w, /home/shopease-lifestyle-1440.webp 1440w",
   sizes: "(min-width: 1024px) 56vw, 100vw",
 };
-const HERO_IMAGE_PROPS = {
-  src: "/home/shopease-lifestyle-960.webp",
-  srcSet:
-    "/home/shopease-lifestyle-480.webp 480w, /home/shopease-lifestyle-640.webp 640w, /home/shopease-lifestyle-960.webp 960w",
-  sizes: "(min-width: 1024px) 36vw, 68vw",
-};
+const HERO_IMAGE_PROPS = getResponsiveImageProps(HERO_COLLECTION_IMAGE, {
+  width: 960,
+  widths: [480, 640, 960],
+  sizes: "(min-width: 1024px) 422px, 68vw",
+});
+const HERO_TECH_TILE_IMAGE_PROPS = getResponsiveImageProps(
+  HERO_TECH_TILE_IMAGE,
+  {
+    width: 640,
+    widths: [320, 480, 640],
+    sizes: "(min-width: 1024px) 217px, 35vw",
+  }
+);
+const HERO_STYLE_TILE_IMAGE_PROPS = getResponsiveImageProps(
+  HERO_STYLE_TILE_IMAGE,
+  {
+    width: 640,
+    widths: [320, 480, 640],
+    sizes: "(min-width: 1024px) 192px, 31vw",
+  }
+);
 
 const SectionHeading = ({
   eyebrow,
@@ -160,29 +181,7 @@ const SectionHeading = ({
 
 
 
-const HeroGallery = ({ products }) => {
-  const secondary = products[0];
-  const tertiary = products[1] || secondary;
-
-  const secondaryImage = getProductImage(secondary);
-  const tertiaryImage = getProductImage(tertiary);
-  const secondaryImageProps = secondaryImage
-    ? getResponsiveImageProps(secondaryImage, {
-        apiBaseUrl: API_BASE_URL,
-        width: 640,
-        widths: [320, 480, 640],
-        sizes: "(min-width: 1024px) 220px, 35vw",
-      })
-    : null;
-  const tertiaryImageProps = tertiaryImage
-    ? getResponsiveImageProps(tertiaryImage, {
-        apiBaseUrl: API_BASE_URL,
-        width: 640,
-        widths: [320, 480, 640],
-        sizes: "(min-width: 1024px) 200px, 31vw",
-      })
-    : null;
-
+const HeroGallery = () => {
   return (
     <div className="relative mx-auto min-h-[500px] w-full max-w-[620px] sm:min-h-[590px] lg:min-h-[650px]">
       <div className="absolute left-[7%] top-[8%] h-[76%] w-[76%] rounded-[54px] bg-gradient-to-br from-violet-500/30 via-indigo-400/10 to-cyan-300/20 blur-[1px]" />
@@ -196,6 +195,8 @@ const HeroGallery = ({ products }) => {
           <img
             {...HERO_IMAGE_PROPS}
             alt="ShopEase fashion, technology and lifestyle collection"
+            width="960"
+            height="1200"
             className="h-full w-full object-cover transition duration-700 hover:scale-[1.03]"
             loading="eager"
             decoding="async"
@@ -218,37 +219,31 @@ const HeroGallery = ({ products }) => {
       <div
         className="home-hero-card-secondary absolute right-[1%] top-[12%] z-20 h-[34%] w-[35%] rotate-[5deg] overflow-hidden rounded-[30px] border-[6px] border-slate-950 bg-slate-900 shadow-[0_25px_80px_rgba(0,0,0,0.4)]"
       >
-        {secondaryImageProps && (
-          <img
-            {...secondaryImageProps}
-            alt={getImageAlt(
-              secondaryImage,
-              secondary?.name || "ShopEase product"
-            )}
-            className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-            fetchPriority="low"
-          />
-        )}
+        <img
+          {...HERO_TECH_TILE_IMAGE_PROPS}
+          alt="Modern smartphone, wireless earbuds and smartwatch"
+          width="640"
+          height="640"
+          className="h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+          fetchPriority="low"
+        />
       </div>
 
       <div
         className="home-hero-card-tertiary absolute bottom-[4%] right-[8%] z-20 h-[30%] w-[31%] -rotate-[4deg] overflow-hidden rounded-[28px] border-[6px] border-slate-950 bg-slate-900 shadow-[0_25px_80px_rgba(0,0,0,0.4)]"
       >
-        {tertiaryImageProps && (
-          <img
-            {...tertiaryImageProps}
-            alt={getImageAlt(
-              tertiaryImage,
-              tertiary?.name || "ShopEase product"
-            )}
-            className="h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-            fetchPriority="low"
-          />
-        )}
+        <img
+          {...HERO_STYLE_TILE_IMAGE_PROPS}
+          alt="Modern sneaker, handbag and sunglasses collection"
+          width="640"
+          height="640"
+          className="h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+          fetchPriority="low"
+        />
       </div>
 
       <div
@@ -488,7 +483,6 @@ const Home = () => {
 
   
 
-  const heroProducts = featuredProducts.slice(0, 3);
   const featuredGrid = featuredProducts.slice(0, 8);
   const newestGrid = newProducts.slice(0, 4);
 
@@ -582,7 +576,7 @@ const Home = () => {
             </div>
           </div>
 
-          <HeroGallery products={heroProducts} />
+          <HeroGallery />
         </div>
 
         <div className="relative border-t border-white/10">
