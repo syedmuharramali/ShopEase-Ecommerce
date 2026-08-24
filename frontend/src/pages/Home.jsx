@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import axios from "axios";
-import { motion } from "framer-motion";
 import {
   FaArrowRight,
   FaBolt,
@@ -21,39 +20,15 @@ import {
   FaTruck,
 } from "react-icons/fa";
 import ProductCard from "../components/ProductCard";
+import { getResponsiveImageProps } from "../utils/imageUrls";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
 const LIFESTYLE_IMAGE =
-  "https://res.cloudinary.com/uxbmj8cq/image/upload/f_auto,q_auto:best,c_limit,w_1600/v1787179177/shopease-lifestyleoptimized.webp";
+  "https://res.cloudinary.com/uxbmj8cq/image/upload/f_auto,q_auto:good,c_limit,w_1440/v1787179177/shopease-lifestyleoptimized.webp";
+const HOME_DATA_TTL = 2 * 60 * 1000;
 
-const formatPrice = (value) =>
-  `PKR ${new Intl.NumberFormat("en-PK", {
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0)}`;
-
-const getServerOrigin = () => {
-  if (!API_BASE_URL) return "";
-
-  try {
-    return new URL(API_BASE_URL).origin;
-  } catch {
-    return typeof window !== "undefined" ? window.location.origin : "";
-  }
-};
-
-const getImageUrl = (image) => {
-  const rawPath = typeof image === "string" ? image : image?.url;
-
-  if (!rawPath) {
-    return "https://placehold.co/1200x1400/f1f5f9/64748b?text=ShopEase";
-  }
-
-  const cleanPath = rawPath.replace(/\\/g, "/");
-
-  if (/^https?:\/\//i.test(cleanPath)) return cleanPath;
-
-  return `${getServerOrigin()}/${cleanPath.replace(/^\/+/, "")}`;
-};
+let homeDataCache = null;
+let homeDataRequest = null;
 
 const getImageAlt = (image, fallback) =>
   typeof image === "object" && image?.alt ? image.alt : fallback;
@@ -68,16 +43,6 @@ const getCategorySlug = (product) => {
   if (typeof product.category === "string") return "";
   return product.category.slug || "";
 };
-
-
-
-const getProductPrice = (product) => {
-  const value = product?.storefront?.minPrice;
-  return value === null || value === undefined ? null : Number(value);
-};
-
-
-
 const normalizeProducts = (payload) => {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.products)) return payload.products;
@@ -87,19 +52,71 @@ const normalizeProducts = (payload) => {
 const normalizeCategories = (payload) =>
   Array.isArray(payload?.categories) ? payload.categories : [];
 
-const reveal = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
+const getCachedHomeData = () => {
+  if (!homeDataCache) return null;
+
+  return Date.now() - homeDataCache.savedAt < HOME_DATA_TTL
+    ? homeDataCache.data
+    : null;
 };
 
-const stagger = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.07,
-    },
-  },
+const loadHomeData = async () => {
+  const cachedData = getCachedHomeData();
+  if (cachedData) return cachedData;
+
+  if (!homeDataRequest) {
+    homeDataRequest = axios
+      .get(`${API_BASE_URL}/products`, {
+        params: {
+          limit: 8,
+          sort: "featured",
+          view: "home",
+        },
+      })
+      .then((response) => {
+        const featured = normalizeProducts(response.data);
+        const newestResponse = normalizeProducts(response.data?.newest);
+        const newest = newestResponse.length
+          ? newestResponse
+          : [...featured].sort(
+              (left, right) =>
+                new Date(right?.createdAt || 0) -
+                new Date(left?.createdAt || 0)
+            );
+
+        const data = {
+          featured,
+          newest,
+          categories: normalizeCategories(response.data).slice(0, 6),
+          collectionCount:
+            Number(response.data?.pagination?.total) || featured.length,
+        };
+
+        homeDataCache = {
+          data,
+          savedAt: Date.now(),
+        };
+
+        return data;
+      })
+      .finally(() => {
+        homeDataRequest = null;
+      });
+  }
+
+  return homeDataRequest;
 };
+
+const LIFESTYLE_IMAGE_PROPS = getResponsiveImageProps(LIFESTYLE_IMAGE, {
+  width: 1440,
+  widths: [640, 960, 1440],
+  sizes: "(min-width: 1024px) 56vw, 100vw",
+});
+const HERO_IMAGE_PROPS = getResponsiveImageProps(LIFESTYLE_IMAGE, {
+  width: 960,
+  widths: [480, 640, 960],
+  sizes: "(min-width: 1024px) 36vw, 68vw",
+});
 
 const SectionHeading = ({
   eyebrow,
@@ -144,13 +161,27 @@ const SectionHeading = ({
 
 
 const HeroGallery = ({ products }) => {
-  const primary = products[0];
-  const secondary = products[1] || primary;
-  const tertiary = products[2] || secondary || primary;
+  const secondary = products[0];
+  const tertiary = products[1] || secondary;
 
-  const primaryImage = getProductImage(primary);
   const secondaryImage = getProductImage(secondary);
   const tertiaryImage = getProductImage(tertiary);
+  const secondaryImageProps = secondaryImage
+    ? getResponsiveImageProps(secondaryImage, {
+        apiBaseUrl: API_BASE_URL,
+        width: 640,
+        widths: [320, 480, 640],
+        sizes: "(min-width: 1024px) 220px, 35vw",
+      })
+    : null;
+  const tertiaryImageProps = tertiaryImage
+    ? getResponsiveImageProps(tertiaryImage, {
+        apiBaseUrl: API_BASE_URL,
+        width: 640,
+        widths: [320, 480, 640],
+        sizes: "(min-width: 1024px) 200px, 31vw",
+      })
+    : null;
 
   return (
     <div className="relative mx-auto min-h-[500px] w-full max-w-[620px] sm:min-h-[590px] lg:min-h-[650px]">
@@ -158,16 +189,13 @@ const HeroGallery = ({ products }) => {
       <div className="absolute -right-10 top-[9%] h-52 w-52 rounded-full bg-violet-500/20 blur-3xl" />
       <div className="absolute bottom-[3%] left-[2%] h-56 w-56 rounded-full bg-blue-500/20 blur-3xl" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 30, rotate: -3 }}
-        animate={{ opacity: 1, y: 0, rotate: 0 }}
-        transition={{ duration: 0.75 }}
-        className="absolute left-[10%] top-[2%] z-10 h-[76%] w-[68%] overflow-hidden rounded-[42px] border border-white/15 bg-white/10 p-2.5 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur"
+      <div
+        className="home-hero-card-primary absolute left-[10%] top-[2%] z-10 h-[76%] w-[68%] overflow-hidden rounded-[42px] border border-white/15 bg-white/10 p-2.5 shadow-[0_40px_120px_rgba(0,0,0,0.45)] backdrop-blur"
       >
         <div className="relative h-full overflow-hidden rounded-[34px] bg-slate-900">
           <img
-            src={getImageUrl(primaryImage)}
-            alt={getImageAlt(primaryImage, primary?.name || "ShopEase featured product")}
+            {...HERO_IMAGE_PROPS}
+            alt="ShopEase fashion, technology and lifestyle collection"
             className="h-full w-full object-cover transition duration-700 hover:scale-[1.03]"
             loading="eager"
             decoding="async"
@@ -180,58 +208,51 @@ const HeroGallery = ({ products }) => {
             </p>
             <div className="mt-2 flex items-end justify-between gap-4">
               <h3 className="min-w-0 truncate text-xl font-black tracking-tight text-white sm:text-2xl">
-                {primary?.name || "ShopEase collection"}
+                ShopEase collection
               </h3>
-
-              {getProductPrice(primary) !== null && (
-                <span className="shrink-0 rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-white backdrop-blur-md">
-                  {formatPrice(getProductPrice(primary))}
-                </span>
-              )}
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, x: 28, rotate: 9 }}
-        animate={{ opacity: 1, x: 0, rotate: 5 }}
-        transition={{ duration: 0.7, delay: 0.16 }}
-        className="absolute right-[1%] top-[12%] z-20 h-[34%] w-[35%] overflow-hidden rounded-[30px] border-[6px] border-slate-950 bg-slate-900 shadow-[0_25px_80px_rgba(0,0,0,0.4)]"
+      <div
+        className="home-hero-card-secondary absolute right-[1%] top-[12%] z-20 h-[34%] w-[35%] rotate-[5deg] overflow-hidden rounded-[30px] border-[6px] border-slate-950 bg-slate-900 shadow-[0_25px_80px_rgba(0,0,0,0.4)]"
       >
-        <img
-          src={getImageUrl(secondaryImage)}
-          alt={getImageAlt(
-            secondaryImage,
-            secondary?.name || "ShopEase product"
-          )}
-          className="h-full w-full object-cover"
-          decoding="async"
-        />
-      </motion.div>
+        {secondaryImageProps && (
+          <img
+            {...secondaryImageProps}
+            alt={getImageAlt(
+              secondaryImage,
+              secondary?.name || "ShopEase product"
+            )}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+          />
+        )}
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, x: 24, rotate: -8 }}
-        animate={{ opacity: 1, x: 0, rotate: -4 }}
-        transition={{ duration: 0.7, delay: 0.26 }}
-        className="absolute bottom-[4%] right-[8%] z-20 h-[30%] w-[31%] overflow-hidden rounded-[28px] border-[6px] border-slate-950 bg-slate-900 shadow-[0_25px_80px_rgba(0,0,0,0.4)]"
+      <div
+        className="home-hero-card-tertiary absolute bottom-[4%] right-[8%] z-20 h-[30%] w-[31%] -rotate-[4deg] overflow-hidden rounded-[28px] border-[6px] border-slate-950 bg-slate-900 shadow-[0_25px_80px_rgba(0,0,0,0.4)]"
       >
-        <img
-          src={getImageUrl(tertiaryImage)}
-          alt={getImageAlt(
-            tertiaryImage,
-            tertiary?.name || "ShopEase product"
-          )}
-          className="h-full w-full object-cover"
-          decoding="async"
-        />
-      </motion.div>
+        {tertiaryImageProps && (
+          <img
+            {...tertiaryImageProps}
+            alt={getImageAlt(
+              tertiaryImage,
+              tertiary?.name || "ShopEase product"
+            )}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+          />
+        )}
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, x: -18 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay: 0.38 }}
-        className="absolute bottom-[14%] left-0 z-30 rounded-[22px] border border-white/10 bg-white px-4 py-3.5 text-slate-950 shadow-[0_22px_70px_rgba(0,0,0,0.35)]"
+      <div
+        className="home-hero-badge absolute bottom-[14%] left-0 z-30 rounded-[22px] border border-white/10 bg-white px-4 py-3.5 text-slate-950 shadow-[0_22px_70px_rgba(0,0,0,0.35)]"
       >
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
@@ -244,13 +265,19 @@ const HeroGallery = ({ products }) => {
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };
 
 const CategoryCard = ({ category, product, index }) => {
   const image = getProductImage(product);
+  const imageProps = getResponsiveImageProps(image, {
+    apiBaseUrl: API_BASE_URL,
+    width: 900,
+    widths: [480, 720, 900],
+    sizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+  });
   const palette = [
     "from-violet-950/90 via-violet-900/45",
     "from-blue-950/90 via-blue-900/45",
@@ -261,13 +288,13 @@ const CategoryCard = ({ category, product, index }) => {
   ];
 
   return (
-    <motion.div variants={reveal}>
+    <div>
       <Link
         to={`/products?category=${encodeURIComponent(category.slug || "")}`}
         className="group relative block min-h-[330px] overflow-hidden rounded-[34px] bg-slate-900 shadow-[0_18px_60px_rgba(15,23,42,0.08)]"
       >
         <img
-          src={getImageUrl(image)}
+          {...imageProps}
           alt={getImageAlt(image, category.name || "ShopEase category")}
           className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-110"
           loading="lazy"
@@ -302,12 +329,18 @@ const CategoryCard = ({ category, product, index }) => {
           </div>
         </div>
       </Link>
-    </motion.div>
+    </div>
   );
 };
 
 const EditorialCard = ({ product, eyebrow, title, className = "" }) => {
   const image = getProductImage(product);
+  const imageProps = getResponsiveImageProps(image, {
+    apiBaseUrl: API_BASE_URL,
+    width: 960,
+    widths: [480, 720, 960],
+    sizes: "(min-width: 1024px) 58vw, 100vw",
+  });
 
   return (
     <Link
@@ -315,7 +348,7 @@ const EditorialCard = ({ product, eyebrow, title, className = "" }) => {
       className={`group relative overflow-hidden rounded-[38px] bg-slate-900 ${className}`}
     >
       <img
-        src={getImageUrl(image)}
+        {...imageProps}
         alt={getImageAlt(image, product?.name || "ShopEase edit")}
         className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.05]"
         loading="lazy"
@@ -368,14 +401,23 @@ const homeFaqs = [
 
 const Home = () => {
   const navigate = useNavigate();
+  const initialHomeData = getCachedHomeData();
 
-  const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [newProducts, setNewProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [collectionCount, setCollectionCount] = useState(0);
+  const [featuredProducts, setFeaturedProducts] = useState(
+    () => initialHomeData?.featured || []
+  );
+  const [newProducts, setNewProducts] = useState(
+    () => initialHomeData?.newest || []
+  );
+  const [categories, setCategories] = useState(
+    () => initialHomeData?.categories || []
+  );
+  const [collectionCount, setCollectionCount] = useState(
+    () => initialHomeData?.collectionCount || 0
+  );
   const [searchTerm, setSearchTerm] = useState("");
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !initialHomeData);
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
@@ -383,41 +425,17 @@ const Home = () => {
 
     const fetchHomeData = async () => {
       try {
-        setLoading(true);
+        if (!getCachedHomeData()) setLoading(true);
         setLoadError("");
 
-        const [featuredResponse, newestResponse] = await Promise.all([
-          axios.get(`${API_BASE_URL}/products`, {
-            params: {
-              limit: 12,
-              sort: "featured",
-            },
-          }),
-          axios.get(`${API_BASE_URL}/products`, {
-            params: {
-              limit: 8,
-              sort: "newest",
-            },
-          }),
-        ]);
+        const homeData = await loadHomeData();
 
         if (cancelled) return;
 
-        const featured = normalizeProducts(featuredResponse.data);
-        const newest = normalizeProducts(newestResponse.data);
-        const categoryList =
-          normalizeCategories(featuredResponse.data).length > 0
-            ? normalizeCategories(featuredResponse.data)
-            : normalizeCategories(newestResponse.data);
-
-        setFeaturedProducts(featured);
-        setNewProducts(newest);
-        setCategories(categoryList.slice(0, 6));
-        setCollectionCount(
-          Number(featuredResponse.data?.pagination?.total) ||
-            Number(newestResponse.data?.pagination?.total) ||
-            featured.length
-        );
+        setFeaturedProducts(homeData.featured);
+        setNewProducts(homeData.newest);
+        setCategories(homeData.categories);
+        setCollectionCount(homeData.collectionCount);
       } catch (error) {
         console.error("Home data loading error:", error);
 
@@ -494,18 +512,15 @@ const Home = () => {
   
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#f6f6f4] text-slate-950">
+    <main className="home-page min-h-screen overflow-hidden bg-[#f6f6f4] text-slate-950">
       <section className="relative overflow-hidden bg-[#080a0f] text-white">
         <div className="absolute left-[-10rem] top-[-7rem] h-[32rem] w-[32rem] rounded-full bg-violet-600/25 blur-[120px]" />
         <div className="absolute bottom-[-12rem] right-[-8rem] h-[36rem] w-[36rem] rounded-full bg-blue-600/20 blur-[120px]" />
         <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(rgba(255,255,255,0.5)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.5)_1px,transparent_1px)] [background-size:56px_56px]" />
 
         <div className="relative mx-auto grid min-h-[calc(100vh-72px)] max-w-7xl items-center gap-12 px-4 py-14 sm:px-6 sm:py-20 lg:grid-cols-[0.95fr_1.05fr] lg:px-8 lg:py-16">
-          <motion.div
-            initial={{ opacity: 0, y: 22 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65 }}
-            className="relative z-10 max-w-3xl"
+          <div
+            className="home-hero-copy relative z-10 max-w-3xl"
           >
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-[10px] font-black uppercase tracking-[0.22em] text-violet-200 backdrop-blur">
               <FaBolt className="text-[9px]" />
@@ -565,7 +580,7 @@ const Home = () => {
                 <FaTruck className="text-xs" /> Track an order
               </Link>
             </div>
-          </motion.div>
+          </div>
 
           <HeroGallery products={heroProducts} />
         </div>
@@ -596,7 +611,7 @@ const Home = () => {
             action={<Link to="/products" className="inline-flex w-fit items-center gap-2 text-sm font-black text-slate-700 transition hover:text-violet-600">View all products <FaArrowRight className="text-[10px]" /></Link>}
           />
 
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.12 }} variants={stagger} className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {categories.map((category, index) => {
               const representative = categoryProductMap.get(category.slug) || null;
 
@@ -609,7 +624,7 @@ const Home = () => {
                 />
               );
             })}
-          </motion.div>
+          </div>
         </section>
       )}
 
@@ -644,9 +659,9 @@ const Home = () => {
           ) : featuredGrid.length === 0 ? (
             <div className="mt-10 rounded-[32px] border border-slate-200 bg-slate-50 px-6 py-14 text-center"><FaShoppingBag className="mx-auto text-2xl text-slate-300" /><p className="mt-4 text-sm font-bold text-slate-700">Products are coming soon.</p></div>
           ) : (
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.08 }} variants={stagger} className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {featuredGrid.map((product) => <motion.div key={product._id} variants={reveal}><ProductCard product={product} /></motion.div>)}
-            </motion.div>
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredGrid.map((product) => <div key={product._id}><ProductCard product={product} /></div>)}
+            </div>
           )}
         </div>
       </section>
@@ -675,9 +690,9 @@ const Home = () => {
         <section className="border-b border-slate-200 bg-white">
           <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-28">
             <SectionHeading eyebrow="Just landed" title="New arrivals, front and center." description="Fresh products automatically appear here when they are added to the catalog." action={<Link to="/products?sort=newest" className="inline-flex w-fit items-center gap-2 text-sm font-black text-slate-700 transition hover:text-violet-600">See newest <FaArrowRight className="text-[10px]" /></Link>} />
-            <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} variants={stagger} className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {newestGrid.map((product) => <motion.div key={product._id} variants={reveal}><ProductCard product={product} /></motion.div>)}
-            </motion.div>
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {newestGrid.map((product) => <div key={product._id}><ProductCard product={product} /></div>)}
+            </div>
           </div>
         </section>
       )}
@@ -691,7 +706,7 @@ const Home = () => {
             <Link to="/products" className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-3.5 text-sm font-black text-white transition hover:bg-violet-700">Start shopping <FaArrowRight className="text-[10px]" /></Link>
           </div>
 
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} variants={stagger} className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             {[
               { icon: FaSyncAlt, number: "01", title: "Exact variant selection", text: "Customers choose the actual available size, color or product option before ordering." },
               { icon: FaBoxOpen, number: "02", title: "Live inventory", text: "Availability follows real variant stock instead of a generic product-level guess." },
@@ -700,12 +715,12 @@ const Home = () => {
               { icon: FaTruck, number: "05", title: "Order tracking", text: "Customers can return with their order number and contact to follow fulfillment." },
               { icon: FaStar, number: "06", title: "Verified feedback", text: "Only customers with delivered orders can submit a verified-purchase review." },
             ].map(({ icon: Icon, number, title, text }) => (
-              <motion.div key={title} variants={reveal} className="group rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_14px_45px_rgba(15,23,42,0.035)] transition hover:-translate-y-1 hover:border-violet-200 hover:shadow-[0_22px_70px_rgba(79,70,229,0.08)] sm:p-7">
+              <div key={title} className="group rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_14px_45px_rgba(15,23,42,0.035)] transition hover:-translate-y-1 hover:border-violet-200 hover:shadow-[0_22px_70px_rgba(79,70,229,0.08)] sm:p-7">
                 <div className="flex items-center justify-between"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600 transition group-hover:bg-violet-600 group-hover:text-white"><Icon /></div><span className="text-xs font-black text-slate-300">{number}</span></div>
                 <h3 className="mt-6 text-lg font-black tracking-tight text-slate-950">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-500">{text}</p>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </section>
 
@@ -724,7 +739,7 @@ const Home = () => {
 
             <div className="relative min-h-[390px] overflow-hidden bg-slate-100 sm:min-h-[480px] lg:min-h-[560px]">
               <img
-                src={LIFESTYLE_IMAGE}
+                {...LIFESTYLE_IMAGE_PROPS}
                 alt="ShopEase fashion, footwear and lifestyle collection"
                 className="absolute inset-0 h-full w-full object-cover"
                 loading="lazy"

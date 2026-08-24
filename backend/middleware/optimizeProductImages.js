@@ -34,7 +34,7 @@ const optimizeCloudinaryImageUrl = (value, maxWidth) => {
     return value;
   }
 
-  const transformation = `f_auto,q_auto:best,c_limit,w_${maxWidth}`;
+  const transformation = `f_auto,q_auto:good,c_limit,w_${maxWidth}`;
   return `${prefix}${CLOUDINARY_UPLOAD_MARKER}${transformation}/${suffix}`;
 };
 
