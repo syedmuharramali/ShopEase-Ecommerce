@@ -3,7 +3,7 @@ import axios from "axios";
 const CLOUDINARY_HOST = "res.cloudinary.com";
 const CLOUDINARY_UPLOAD_MARKER = "/image/upload/";
 
-const optimizeCloudinaryUrl = (value, maxWidth = 1000) => {
+const optimizeCloudinaryUrl = (value, maxWidth = 960) => {
   if (
     typeof value !== "string" ||
     !value.includes(CLOUDINARY_HOST) ||
@@ -21,7 +21,7 @@ const optimizeCloudinaryUrl = (value, maxWidth = 1000) => {
     return value;
   }
 
-  return `${prefix}${CLOUDINARY_UPLOAD_MARKER}f_auto,q_auto:best,c_limit,w_${maxWidth}/${suffix}`;
+  return `${prefix}${CLOUDINARY_UPLOAD_MARKER}f_auto,q_auto:good,c_limit,w_${maxWidth}/${suffix}`;
 };
 
 const optimizePayload = (value) => {
