@@ -23,8 +23,6 @@ import ProductCard from "../components/ProductCard";
 import { getResponsiveImageProps } from "../utils/imageUrls";
 
 const API_BASE_URL = (import.meta.env.VITE_BASE_URL || "").replace(/\/$/, "");
-const LIFESTYLE_IMAGE =
-  "https://res.cloudinary.com/uxbmj8cq/image/upload/f_auto,q_auto:good,c_limit,w_1440/v1787179177/shopease-lifestyleoptimized.webp";
 const HOME_DATA_TTL = 2 * 60 * 1000;
 
 let homeDataCache = null;
@@ -107,16 +105,18 @@ const loadHomeData = async () => {
   return homeDataRequest;
 };
 
-const LIFESTYLE_IMAGE_PROPS = getResponsiveImageProps(LIFESTYLE_IMAGE, {
-  width: 1440,
-  widths: [640, 960, 1440],
+const LIFESTYLE_IMAGE_PROPS = {
+  src: "/home/shopease-lifestyle-1440.webp",
+  srcSet:
+    "/home/shopease-lifestyle-640.webp 640w, /home/shopease-lifestyle-960.webp 960w, /home/shopease-lifestyle-1440.webp 1440w",
   sizes: "(min-width: 1024px) 56vw, 100vw",
-});
-const HERO_IMAGE_PROPS = getResponsiveImageProps(LIFESTYLE_IMAGE, {
-  width: 960,
-  widths: [480, 640, 960],
+};
+const HERO_IMAGE_PROPS = {
+  src: "/home/shopease-lifestyle-960.webp",
+  srcSet:
+    "/home/shopease-lifestyle-480.webp 480w, /home/shopease-lifestyle-640.webp 640w, /home/shopease-lifestyle-960.webp 960w",
   sizes: "(min-width: 1024px) 36vw, 68vw",
-});
+};
 
 const SectionHeading = ({
   eyebrow,
